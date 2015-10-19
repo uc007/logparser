@@ -1,0 +1,36 @@
+version: 1
+disable_existing_loggers: True
+formatters:
+    brief:
+        format: '%(message)s'
+    precise:
+        format: '%(asctime)s : %(name)-8s %(levelname)-8s %(message)s'
+        datefmt: '%Y-%m-%d %H:%M:%S'
+handlers:
+    h1:
+        class : 'logging.handlers.RotatingFileHandler'
+        filename: 'E:/Dropbox/dev/python/projects/logparser/log/logparser.log'
+        maxBytes: 102400
+        backupCount: 3
+        formatter: precise
+        level: 'INFO'
+    h2:
+        class : 'logging.handlers.RotatingFileHandler'
+        filename: 'E:/Dropbox/dev/python/projects/logparser/log/error.log'
+        maxBytes: 102400
+        backupCount: 3
+        formatter: precise
+        level: 'ERROR'
+loggers:
+    parser:
+        handlers: [h1, h2]
+        level: 'INFO'
+    PRS0001: # logParser 001, must be the same id as in logparser config file logparser.yml
+        handlers: [h1, h2]
+        level: 'INFO'
+    PRS0002: # logParser 002
+        handlers: [h1, h2]
+        level: 'INFO'
+    PRS0003: # logParser 003
+        handlers: [h1, h2]
+        level: 'INFO'

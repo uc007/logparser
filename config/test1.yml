@@ -1,0 +1,304 @@
+---
+defaults:
+    constants:
+        evtsta: &CONST_EVENT_STATUS
+            status:
+                ok: 'ok'
+                error: 'error'
+                warning: 'warning'
+    properties:
+        source: &PROP_SOURCE
+            source:
+                logFile: '%sourceFile%'
+                logLineNum: '%sourceLineNum%'
+                parser: '%parserId%'
+                configFile: '%configFile%'
+                system: '%sourceSystem%'
+        python: &PROP_PYTHON
+            python:
+                implementation: '%pythonImplementation%'
+                version: '%pythonVersion%'
+                script: '%pythonScript%'
+    events:
+        file: &FILE_EVENTS
+            keys:
+                - {name: 'file_size', text: 'SIZE', out: 'FILE_SIZE'}
+                - {name: 'file_age', text: 'AGE', out: 'FILE_AGE'}
+                - {name: 'file_missing', text: 'MISSING', out: 'FILE_MISSING'}
+                - {name: 'file_number', text: 'NFILES', out: 'FILE_NUMBER'}
+        onbd: &ONB_EVENTS_D # double onboarding events with START and END
+            keys:
+                - {name: 'onb_autoload', text: 'ONB;AUTOLOAD', out: 'ONB_AUTOLOAD'}
+                - {name: 'ldss_load', text: 'LDSS;LOAD', out: 'LDSS_LOAD'}
+                - {name: 'ldss_validation', text: 'LDSS;VALIDATION', out: 'LDSS_VALIDATION'}
+                - {name: 'onb_transformation', text: 'ONB;TRANSFORMATION', out: 'ONB_TRANSFORMATION'}
+                - {name: 'ovsc_transformation', text: 'OVSC;TRANSFORMATION', out: 'OVSC_TRANSFORMATION'}
+                - {name: 'dss_wrapperscript', text: 'LDSS;WRAPPERSCRIPT', out: 'LDSS_WRAPPERSCRIPT'}
+        onbs: &ONB_EVENTS_S # single onboarding events
+            keys:
+                - {name: 'ovsc_hpp_script', text: 'OVSC;HPP SCRIPT', out: 'OVSC_HPP_SCRIPT'}
+                - {name: 'onb_release', text: 'ONB;RELEASE', out: 'ONB_RELEASE'}
+                - {name: 'ovsc_release', text: 'OVSC;RELEASE', out: 'OVSC_RELEASE'}
+    solutions:
+        file:
+            cac:  &FILE_CU_AM_CO
+                name: 'cust_hpam_contact'
+                text: 'CUST_HPAM_CONTACT'
+                out: 'CUST_HPAM_CONTACT'
+            csc:  &FILE_CU_SM_CO
+                name: 'cust_hpsm_contact'
+                text: 'CUST_HPSM_CONTACT'
+                out: 'CUST_HPSM_CONTACT'
+            csd:  &FILE_CU_SM_DV
+                name: 'cust_hpsm_device'
+                text: 'CUST_HPSM_DEVICE'
+                out: 'CUST_HPSM_DEVICE'
+            cad:  &FILE_CU_AM_DV
+                name: 'cust_hpam_device'
+                text: 'CUST_HPAM_DEVICE'
+                out: 'CUST_HPAM_DEVICE'
+        onb:
+            cac:  &ONB_CU_AM_CO
+                name: 'cust_asset_contact'
+                text: 'ASSET_CONTACT'
+                out: 'CUST_HPAM_CONTACT'
+            csc:  &ONB_CU_SM_CO
+                name: 'cust_ovsc_contact'
+                text: 'OVSC_CONTACT'
+                out: 'CUST_HPSM_CONTACT'
+            csd:  &ONB_CU_SM_DV
+                name: 'cust_ovsc_device'
+                text: 'OVSC_DEVICE'
+                out: 'CUST_HPSM_DEVICE'
+            cad:  &ONB_CU_AM_DV
+                name: 'cust_asset_asset'
+                text: 'ASSET_ASSET'
+                out: 'CUST_HPAM_DEVICE'
+    regex:
+        onb: &ONB_REGEX
+            regex:
+                positive: 'yes'  # 'no' - if no match then ok, 'yes' - if match then ok
+                text: '(%dt%)\s*;\s*(%k3%)\s*;\s*(%k4%)\s*;\s*(.*)\s*;\s*(%k2%)\s*;\s*(.*)\s*;\s*(%k1%)\s*;(.*?)\n'
+    selection:
+        onb: &ONB_CHUNK
+            chunk:
+                size: 1000 # chunk size in lines
+                offset: -6 # negative offset gets chunks from the end of file
+                number: 6 # number of chunks to process
+        onb: &ONB_TIME
+            time:
+                active: 'yes' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
+                offset: {'days': -7} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 7} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+        onb: &ONB_SELECTION
+            selection:
+                <<: *ONB_CHUNK
+                <<: *ONB_TIME
+                group:
+                    slice: '-1::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
+                                  # if date is available, then group items are first sorted by date ascending
+                status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
+    results:
+        onb: &ONB_RESULT
+            result:
+                type: 'json'
+                pathName: 'E:/dropbox/dev/python/projects/logparser/out'
+                fileName: 'events_%parserId%.json'
+                constants:
+                    <<: *CONST_EVENT_STATUS
+                fields:
+                    created: '%eventDate%'
+                    customerId: '%k1.lower%_datasynch' #  value from key 1 in 'out'
+                    customerName: '%k1% - DataSynch'
+                    environment: '%environment%'
+                    businessArea: '%businessArea%'
+                    serviceId: '%k2%'
+                    serviceName: ''
+                    instanceId: '%k4%'
+                    instanceType: '%k3%'
+                    eventType: '%eventStatus%'
+                    hostId: '%sourceHost%'
+                    creator: 'LogParser'
+                    properties:
+                        message: '%eventMessage%' # or %g3% for regex result group 3
+                        <<: *PROP_SOURCE
+                        <<: *PROP_PYTHON
+logs:
+    -   id: 'LOG0001'
+        environment: 'CDC_FILE_PROD'
+        businessArea: 'EMEA'
+        name: 'actmon'
+        type: 'flatFile'
+        pathName: 'E:/Dropbox/dev/python/projects/logparser/in'
+        fileName: 'act_mon.log'
+        date:
+            exists : 'yes'
+            format: '%a %b %d %H:%M:%S %Y'
+            regex: '[a-zA-Z]+\s+[a-zA-Z]+\s+[0-9]+\s+[0-9]+:[0-9]+:[0-9]+\s+[0-9]+'
+    -   id: 'LOG0002'
+        environment: 'CDC_ONB_PROD'
+        businessArea: 'EMEA'
+        name: 'cdc_db_extract'
+        type: 'flatFile'
+        pathName: 'E:/Dropbox/dev/python/projects/logparser/in'
+        fileName: 'onb_history3_err.csv'
+        date:
+            exists : 'yes'
+            format: '%Y-%m-%d %H:%M:%S'
+            regex: '[0-9]+-[0-9]+-[0-9]+\s+[0-9]+:[0-9]+:[0-9]+'
+parser:
+    -   id: 'PRS0001'
+        text: 'Looks for file events like FILE_SIZE, FILE_AGE etc.'
+        active: 'yes'
+        logId: ['LOG0001']
+        mode:
+            id: 1   # 1-single, 2-pair (start, end)
+        keys:
+            -   name: 'azse'
+                text: 'AZSE'
+                out: 'AZSE'
+                keys:
+                    - {<<: *FILE_CU_SM_CO, <<: *FILE_EVENTS}
+                    - {<<: *FILE_CU_SM_DV, <<: *FILE_EVENTS}
+                    - {<<: *FILE_CU_AM_CO, <<: *FILE_EVENTS}
+            -   name: 'spmi'
+                text: 'SPMI'
+                out: 'SPMI'
+                keys:
+                    - {<<: *FILE_CU_AM_CO, <<: *FILE_EVENTS}
+                    - {<<: *FILE_CU_SM_CO, <<: *FILE_EVENTS}
+            -   name: 'hei'
+                text: 'HEI'
+                out: 'HEI'
+                keys:
+                    - {<<: *FILE_CU_SM_DV, <<: *FILE_EVENTS}
+        regex:
+            positive: 'no'  # 'no' - if no match then ok, 'yes' - if match then ok
+            text: '(%dt%)\s*:\s*([\w]+):\s*(%k3%)\s*([\w]+)\s*(.*) GROUP=(%k1%)_(%k2%)'
+        selection:
+            chunk:
+                size: 10000 # chunk size in lines
+                offset: -1 # negative offset gets chunks from the end of file
+                number: 1 # number of chunks to process
+            time:
+                active: 'yes' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
+                offset: {'days': -500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+            group:
+                slice: '-1::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
+            status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
+        result:
+            type: 'json'
+            pathName: 'E:/dropbox/dev/python/projects/logparser/out'
+            fileName: 'events_%parserId%.json'
+            constants:
+                <<: *CONST_EVENT_STATUS
+            fields:
+                created: '%eventDate%'
+                customerId: '%k1.lower%_datasynch' #  value from key 1 in 'out'
+                customerName: '%k1% - DataSynch'
+                environment: '%environment%'
+                businessArea: '%businessArea%'
+                serviceId: '%k2%'
+                serviceName: ''
+                instanceId: '%k3%'
+                instanceType: ''
+                eventType: '%eventStatus%'
+                hostId: '%sourceHost%'
+                creator: 'LogParser'
+                properties:
+                    message: '%eventMessage%' # or %g3% for regex result group 3
+                    <<: *PROP_SOURCE
+                    <<: *PROP_PYTHON
+
+    -   id: 'PRS0002'
+        text: 'Looks for start-end database events like ONB_LOAD, ONB_VALIDATION etc.'
+        active: 'yes'
+        logId: ['LOG0002']
+        mode:
+            id: 2   # 1-single, 2-multi (start, .., end)
+            keys:
+                text: ['START', 'END']
+                group: 8 # in which regex group are the keys
+        keys:
+            -   name: 'alu'
+                text: 'ALU'
+                out: 'ALU'
+                keys:
+                    -   <<: *ONB_CU_SM_CO
+                        keys:
+                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_D}
+            -   name: 'azse'
+                text: 'AZSE'
+                out: 'AZSE'
+                keys:
+                    -   <<: *ONB_CU_SM_CO
+                        keys:
+                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_D}
+        <<: *ONB_REGEX
+        selection:
+            <<: *ONB_CHUNK
+            <<: *ONB_TIME
+            group:
+                slice: '-2::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
+                              # if date is available, then group items are first sorted by date ascending
+            status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
+        <<: *ONB_RESULT
+
+    -   id: 'PRS0003'
+        text: 'Looks for single database events like ONB_RELEASE, OVSC_HPP_SCRIPT etc.'
+        active: 'yes'
+        logId: ['LOG0002']
+        mode:
+            id: 1   # 1-single, 2-multi (start, .., end)
+        keys:
+            -   name: 'alu'
+                text: 'ALU'
+                out: 'ALU'
+                keys:
+                    -   <<: *ONB_CU_SM_CO
+                        keys:
+                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_S}
+            -   name: 'azse'
+                text: 'AZSE'
+                out: 'AZSE'
+                keys:
+                    -   <<: *ONB_CU_SM_CO
+                        keys:
+                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_S}
+        <<: *ONB_REGEX
+        <<: *ONB_SELECTION
+        <<: *ONB_RESULT
+logging:
+    version: 1
+    disable_existing_loggers: True
+    formatters:
+        brief:
+            format: '%(message)s'
+        precise:
+            format: '%(asctime)s : %(levelname)-8s %(message)s'
+            datefmt: '%Y-%m-%d %H:%M:%S'
+    handlers:
+        h1:
+            class : 'logging.handlers.RotatingFileHandler'
+            filename: 'E:/Dropbox/dev/python/projects/logparser/log/logparser.log'
+            maxBytes: 1024000
+            backupCount: 3
+            formatter: precise
+            level: 'DEBUG'
+        h2:
+            class : 'logging.handlers.RotatingFileHandler'
+            filename: 'E:/Dropbox/dev/python/projects/logparser/log/error.log'
+            maxBytes: 1024000
+            backupCount: 3
+            formatter: precise
+            level: 'ERROR'
+    loggers:
+        parser:
+            handlers: [h1, h2]
+            level: 'INFO'
+out:
+    file:
+        pathName: 'E:/dropbox/dev/python/projects/logparser/out'
+        fileName: 'events_ALL.json'
+

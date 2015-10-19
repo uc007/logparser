@@ -1,0 +1,63 @@
+---
+events:  &EVENTS
+  keys:
+    - {name: file_size, text: 'FILE SIZE', out: FILE_SIZE}
+    - {name: file_age, text: 'FILE AGE', out: FILE_AGE}
+    - {name: file_missing, text: 'FILE MISSING', out: FILE_MISSING}
+solutions:
+  chc:  &CHC
+    name                : cust_hpsm_contact
+    text                : CUST_HPSM_CONTACT
+    out                 : CUST_HPSM_CONTACT
+  chd:  &CHD
+    name                : cust_hpsm_device
+    text                : CUST_HPSM_DEVICE
+    out                 : CUST_HPSM_DEVICE
+logs:
+  - id                  : LOG0001
+    name                : actmon
+    type                : flatFile
+    pathname            : 'E:/dev/python/projects/log'
+    filename            : 'test.log'
+    date:
+      exists            : 'yes'
+      format            : '%d.%m.%Y %H:%M:%S'
+      regex             : '^[0-9]+.[0-9]+.[0-9]+ [0-9]+:[0-9]+:[0-9]+'
+
+    parser:
+      - id                : 'PRS0001'
+        timeoffset        : '-1' # time delta ([days[, seconds[, microseconds[, milliseconds[, minutes[, hours[, weeks]]]]]]])
+        timeinterval      : '1' # time delta (dto)
+        mode              : '1'   # 1-single, 2-pair (start, end)
+        keys:
+          - name      : 'azse'
+            text      : 'AZSE'
+            out       : 'AZSE'
+            keys:
+              - {<<: *CHC, <<: *EVENTS}
+              - {<<: *CHD, <<: *EVENTS}
+          - name      : 'spmi'
+            text      : 'SPMI'
+            out       : 'SPMI'
+            keys:
+              - {<<: *CHC, <<: *EVENTS}
+          - name      : 'hei'
+            text      : 'HEI'
+            out       : 'HEI'
+            keys:
+              - {<<: *CHD, <<: *EVENTS}
+        regex:
+          positive        : 'no'  # if no match then ok
+          text            : '(?P<date>%dt%)\s*(?P<evttxt>%k3%):(?P<msgtxt>.*)\s+(?P<custtxt>%k1%)_(?P<soltxt>%k2%)\n'
+        result:
+          type            : json
+          pathname        : 'E:\dev\python\projects\out'
+          filename        : 'logparser.json'
+          fields:
+            customer      : '%k1%'
+            service       : '%k2%'
+            event         : '%k3%'
+            status        : '%events_status%'
+            properties:
+              message     : '?P=msgtxt'
+
