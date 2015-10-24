@@ -148,8 +148,6 @@ defaults:
         onb: &ONB_RESULT
             result:
                 type: 'json'
-                pathName: 'E:/dropbox/dev/python/projects/logparser/out'
-                fileName: 'events_%parserId%.json'
                 constants:
                     <<: *CONST_EVENT_STATUS
                 fields:
@@ -191,7 +189,7 @@ logs:
         businessArea: 'EMEA'
         name: 'actmon'
         type: 'flatFile'
-        pathName: 'E:/Dropbox/dev/python/projects/logparser/in'
+        pathName: './in'
         fileName: 'act_mon.log'
         date:
             exists : 'yes'
@@ -202,12 +200,13 @@ logs:
         businessArea: 'EMEA'
         name: 'cdc_db_extract'
         type: 'flatFile'
-        pathName: 'E:/Dropbox/dev/python/projects/logparser/in'
+        pathName: './in'
         fileName: 'onb_history3_err.csv'
         date:
             exists : 'yes'
             format: '%Y-%m-%d %H:%M:%S'
             regex: '[0-9]+-[0-9]+-[0-9]+\s+[0-9]+:[0-9]+:[0-9]+'
+
 parser:
     -   id: 'PRS0001'
         text: 'Looks for file events like FILE_SIZE, FILE_AGE etc.'
@@ -251,8 +250,6 @@ parser:
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
         result:
             type: 'json'
-            pathName: 'E:/dropbox/dev/python/projects/logparser/out'
-            fileName: 'events_%parserId%.json'
             constants:
                 <<: *CONST_EVENT_STATUS
             fields:
@@ -272,6 +269,8 @@ parser:
                     message: '%eventMessage%' # or %g3% for regex result group 3
                     <<: *PROP_SOURCE
                     <<: *PROP_PYTHON
+        out:
+            <<: *ONB_OUT
 
     -   id: 'PRS0002'
         text: 'Looks for start-end database events like ONB_LOAD, ONB_VALIDATION etc.'
@@ -306,6 +305,8 @@ parser:
                               # if date is available, then group items are first sorted by date ascending
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
         <<: *ONB_RESULT
+        out:
+            <<: *ONB_OUT
 
     -   id: 'PRS0003'
         text: 'Looks for single database events like ONB_RELEASE, OVSC_HPP_SCRIPT etc.'
@@ -331,6 +332,9 @@ parser:
         <<: *ONB_REGEX
         <<: *ONB_SELECTION
         <<: *ONB_RESULT
+        out:
+            <<: *ONB_OUT
+
 logging:
     version: 1
     disable_existing_loggers: True
@@ -343,14 +347,14 @@ logging:
     handlers:
         h1:
             class : 'logging.handlers.RotatingFileHandler'
-            filename: 'E:/Dropbox/dev/python/projects/logparser/log/logparser.log'
+            filename: './log/logparser.log'
             maxBytes: 1024000
             backupCount: 3
             formatter: precise
             level: 'DEBUG'
         h2:
             class : 'logging.handlers.RotatingFileHandler'
-            filename: 'E:/Dropbox/dev/python/projects/logparser/log/error.log'
+            filename: './log/error.log'
             maxBytes: 1024000
             backupCount: 3
             formatter: precise
@@ -359,8 +363,9 @@ logging:
         parser:
             handlers: [h1, h2]
             level: 'INFO'
+
 out:
     file:
-        pathName: 'E:/dropbox/dev/python/projects/logparser/out'
+        pathName: './out'
         fileName: 'events_ALL.json'
 

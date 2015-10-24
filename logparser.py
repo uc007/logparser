@@ -1,12 +1,16 @@
 import yaml
-import lopa
 import logging
 import logging.config
 import json
+import sys
+
+# my modules
+sys.path.append('./lib')
+import lopa
 
 __author__ = 'Ralf'
 
-# !/usr/bin/env python
+# !/usr/bin/env python3
 
 
 def main():
@@ -46,10 +50,10 @@ def main():
                         logger.info('{} {:>2} {} {:2}'.format('RUN', str(run), '/', str(total_runs)))
                         obj_parser = lopa.ClsParser(log, par, logger)
                         obj_parser.log_info()
-                        l_par = obj_parser.result_list()
+                        l_par = obj_parser.result_list
+                        obj_parser.curl_token()
                         for res in l_par:
                             l_all.append(res)
-                        # logger.info(lopa.LOG_MAX_TEXT_LEN * '=')
                         with open(obj_parser.result_file_path, 'w') as fh:
                             logger.info(lopa.LOG_MAX_TEXT_LEN * '-')
                             logger.info('{} {}'.format('Write events to parser file', fh.name))

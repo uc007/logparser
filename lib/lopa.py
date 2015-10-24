@@ -8,20 +8,22 @@ import copy
 import sys
 import pprint
 from operator import itemgetter
+from subprocess import Popen, PIPE
 
 __author__ = 'Ralf'
 
-# !/usr/bin/env python
+# !/usr/bin/env python3
 
 # constants
 LOG_INTEND = 4
 LOG_MAX_TEXT_LEN = 80
 KEY_KEYS = 'keys'
-CONFIG_FILE = './config/test1.yml'
+CONFIG_FILE = './config/logparser.yml'
 #  placeholders
 PH_DATE = '%dt%'
 PH_BUSINESS_AREA = '%businessArea%'
 PH_CONFIGFILE = '%configFile%'
+PH_CUSTOMER_ID = '%customerId%'
 PH_EVENT_STATUS = '%eventStatus%'
 PH_EVENT_DATE = '%eventDate%'
 PH_EVENT_MESSAGE = '%eventMessage%'
@@ -242,14 +244,24 @@ class ClsParser:
             self.__parser_group_slice = '-1::'  # default - last element
         self.__parser_result_fields = dict_parser['result']['fields']
         self.env_tuples = ClsEnvTuples()
-        self.__result_file_path = dict_parser['result']['pathName'] + '/' + dict_parser['result']['fileName']
-        self.__result_file_path = self.__result_file_path.replace(PH_PARSER_ID, self.__parser_id)
+        self.__parser_result_file_path = dict_parser['out']['file']['pathName'] + '/' + \
+                                         dict_parser['out']['file']['fileName']
+        self.__parser_result_file_path = self.__parser_result_file_path.replace(PH_PARSER_ID, self.__parser_id)
+        self.__parser_http_out_protocol = dict_parser['out']['http']['protocol']
+        self.__parser_http_out_port = dict_parser['out']['http']['port']
+        self.__parser_http_out_hostname = dict_parser['out']['http']['hostName']
+        self.__parser_http_out_token_path = dict_parser['out']['http']['tokenPath']
+        self.__parser_http_out_event_path = dict_parser['out']['http']['eventPath']
+        self.__parser_http_out_username = dict_parser['out']['http']['userName']
+        self.__parser_http_out_password = dict_parser['out']['http']['passWord']
+        self.__parser_http_out_chunk_key = dict_parser['out']['http']['chunkKey']
+        self.__parser_http_out_time_factor = dict_parser['out']['http']['timeFactor']
         # logger
         self.__logger = logger
 
     @property
     def result_file_path(self):
-        return self.__result_file_path
+        return self.__parser_result_file_path
 
     def get_log_lines_number(self):
         """
@@ -777,7 +789,7 @@ class ClsParser:
                  (PH_PARSER_ID, self.__parser_id), (PH_PARSER_REGEX, citem['regex']),
                  (PH_SOURCEFILE, self.__log_file_path), (PH_SOURCE_LINE_NUM, str(citem['number'])),
                  (PH_CONFIGFILE, CONFIG_FILE), (PH_EVENT_STATUS, citem['status']),
-                 (PH_EVENT_DATE, int(time.mktime(citem['date'].timetuple()))),
+                 (PH_EVENT_DATE, int(time.mktime(citem['date'].timetuple()) * self.__parser_http_out_time_factor)),
                  (PH_EVENT_MESSAGE, str(citem['message']))]
         # environment details
         for k, v in self.env_tuples.list:
@@ -819,11 +831,12 @@ class ClsParser:
                     dicttools.set_from_dict(resdict, key_map, dict_value_new)
         return resdict
 
+    @property
     def result_list(self):
         """
-        This function gets the parser result dictionary.
+        This function gets the parser result as a list of dictionaries.
 
-        :return: Parser result dictionary
+        :return: Parser result list of dictionaries
         """
         chunks_accumulated = []
         result_list = []
@@ -928,6 +941,71 @@ class ClsParser:
             result_list.append(result_dict)
 
         return result_list
+
+    @property
+    def http_key_tuples(self):
+        """
+        This function provides a list of unique tuples for the http chunk sending.
+        Each tuple represents a key for collecting events to be sent in one chunk.
+        :return: List of unique tuples for the http chunk sending
+
+        Example:
+        [('customerId','azse_datasynch'), ('customerId','hei_datasynch'), ('customerId','azse_datasynch')]
+        """
+        t_list = []
+        for d in self.result_list:
+            for (k, v) in d.items():
+                if k == self.__parser_http_out_chunk_key:
+                    t_list.append((k, v))
+        # create a set of tuples in order to obtain unique items
+        t_set = set(t_list)
+        # return the set as a list of tuples
+        return list(t_set)
+
+    def curl_token(self):
+        """
+        This function gets an authentication token from the ssd,
+        after posting username and password.
+        :return: authentication token
+        """
+        protocol = self.__parser_http_out_protocol
+        port = self.__parser_http_out_port
+        host = self.__parser_http_out_hostname
+        path = self.__parser_http_out_token_path
+        user = self.__parser_http_out_username
+        pw = self.__parser_http_out_password
+
+        content_type = "content-type: application/x-www-form-urlencoded"
+        url = protocol + "://" + host + ":" + port + path
+        data = "client_id=pushClient&grant_type=password&scope=sportal&username=" + user + "&password=" + pw
+
+        with Popen(["curl", "-XPOST", "-s", "-H", content_type, url, "-d", data],
+                   stdout=PIPE, bufsize=1, universal_newlines=True) as p:
+            return p.stdout
+
+    def curl_result(self, data):
+        """
+        This functions posts the data into the target url via curl.
+        The data is sent in chunks that are built on the basis of the same customerId.
+        Because the target url does contain the customerId in it's path.
+        :param data: Data to be sent to the target url.
+        :return: True id success, False if failed.
+        """
+        protocol = self.__parser_http_out_protocol
+        host = self.__parser_http_out_hostname
+        path = self.__parser_http_out_event_path
+
+        authorization = "Authorization: Bearer " + self.curl_token()
+
+        for (k, v) in self.http_key_tuples:
+            # calculate chunk of result list due to chunkKey
+            c_list = [d for d in data if d[k] == v]
+            url = protocol + "://" + host + path.replace(PH_CUSTOMER_ID, v)
+            with Popen(["curl", "-XPOST", "-s", "-H", authorization, url, "-d", c_list],
+                       stdout=PIPE, bufsize=1, universal_newlines=True) as p:
+                for line in p.stdout:
+                    print('{}'.format(line), end='')
+        return True
 
     def log_info(self):
         """
