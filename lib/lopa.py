@@ -503,8 +503,6 @@ class ClsParser:
         in_list = False
         for item in self.__parser_search_col:
             if re.search(item['regex'], line):
-                # print('rx: {}'.format(rx))
-                # print('line: {}'.format(line.rstrip()))
                 in_list = True
                 break
         return in_list
@@ -843,7 +841,7 @@ class ClsParser:
         search_list = self.search_list()
         intend = LOG_INTEND * ' '
         print('parser: {}'.format(self.__parser_id))
-        print('search list: size: {}\n {}'.format(len(search_list), search_list))
+        print('search list: size: {}\n'.format(len(search_list)))
         self.__logger.info('Search for ' + str(len(search_list)) + ' regular expression patterns in the log file.')
         self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
         self.__logger.debug('Search patterns:')
@@ -894,7 +892,7 @@ class ClsParser:
         self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
         self.__logger.debug('Combining search and found items in combi list.')
         combi_list = self.combi_list(chunks_accumulated)
-        print('combi list: size: {}\n {}'.format(len(combi_list), combi_list))
+        print('combi list: size: {}\n'.format(len(combi_list)))
         self.__logger.debug('combi list: size: {}'.format(len(combi_list)))
         for c_item in combi_list:
             self.__logger.debug(c_item)
@@ -903,8 +901,7 @@ class ClsParser:
         self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
         self.__logger.debug('Normalizing combi list by consolidating the found items.')
         combi_list_normalized = ClsResList(self.combi_list_normalized(combi_list))
-        print('combi list normalized: size: {}\n {}'.format(len(combi_list_normalized.list),
-                                                            combi_list_normalized.list))
+        print('combi list normalized: size: {}\n'.format(len(combi_list_normalized.list)))
         self.__logger.debug('combi list normalized: size: {}'.format(combi_list_normalized.length))
         for c_item in combi_list_normalized.list:
             self.__logger.debug(c_item)
@@ -914,7 +911,6 @@ class ClsParser:
         self.__logger.debug('Normalized combi list is filtered for status.')
         combi_list_normalized_filtered = ClsResList(combi_list_normalized.filter(
             status_list=self.__parser_filter_status))
-        print('combi list normalized filtered: {}\n'.format(combi_list_normalized_filtered.status_tuples))
         self.__logger.debug('combi list normalized filtered: size: {}'.format(combi_list_normalized_filtered.length))
         for c_item in combi_list_normalized_filtered.list:
             self.__logger.debug(c_item)
@@ -979,9 +975,12 @@ class ClsParser:
         url = protocol + "://" + host + ":" + port + path
         data = "client_id=pushClient&grant_type=password&scope=sportal&username=" + user + "&password=" + pw
 
+        result = ''
         with Popen(["curl", "-XPOST", "-s", "-H", content_type, url, "-d", data],
                    stdout=PIPE, bufsize=1, universal_newlines=True) as p:
-            return p.stdout
+            for line in p.stdout:
+                result = result + line
+        return result
 
     def curl_result(self, data):
         """

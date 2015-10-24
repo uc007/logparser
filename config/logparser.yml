@@ -185,7 +185,7 @@ defaults:
 
 logs:
     -   id: 'LOG0001'
-        environment: 'CDC_FILE_PROD'
+        environment: 'CDC_EMEA_PROD'
         businessArea: 'EMEA'
         name: 'actmon'
         type: 'flatFile'
@@ -196,12 +196,12 @@ logs:
             format: '%a %b %d %H:%M:%S %Y'
             regex: '[a-zA-Z]+\s+[a-zA-Z]+\s+[0-9]+\s+[0-9]+:[0-9]+:[0-9]+\s+[0-9]+'
     -   id: 'LOG0002'
-        environment: 'CDC_ONB_PROD'
+        environment: 'CDC_EMEA_PROD'
         businessArea: 'EMEA'
         name: 'cdc_db_extract'
         type: 'flatFile'
         pathName: './in'
-        fileName: 'onb_history3_err.csv'
+        fileName: 'onb_history.csv'
         date:
             exists : 'yes'
             format: '%Y-%m-%d %H:%M:%S'
