@@ -169,6 +169,22 @@ defaults:
                         message: '%eventMessage%' # or %g3% for regex result group 3
                         <<: *PROP_SOURCE
                         <<: *PROP_PYTHON
+    out:
+        onb: &ONB_OUT
+            file:
+                pathName: './out'
+                fileName: 'events_%parserId%.json'
+            http:
+                protocol: 'http'
+                port: '8080'
+                hostName: '<hostname>'
+                tokenPath: '/hpdashboard/oauth/token'
+                eventPath: '/hpdashboard/restapi/customers/%customerId%/events'
+                userName: '<username>'
+                passWord: '<password>'
+                chunkKey: 'customerId' # key for collecting events, that are sent in one chunk
+                timeFactor: 1000 # with http send to ssd the UNIX time is expected im ms instead of s
+
 logs:
     -   id: 'LOG0001'
         environment: 'CDC_FILE_PROD'
