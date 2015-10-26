@@ -51,7 +51,8 @@ def main():
                         obj_parser = lopa.ClsParser(log, par, logger)
                         obj_parser.log_info()
                         l_par = obj_parser.result_list
-                        print('token: {}'.format(obj_parser.curl_token()))
+                        obj_parser.curl_result(l_par)
+                        # print('token: {}'.format(obj_parser.curl_result(l_par)))
                         for res in l_par:
                             l_all.append(res)
                         with open(obj_parser.result_file_path, 'w') as fh:

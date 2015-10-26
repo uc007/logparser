@@ -1,6 +1,7 @@
 import time
 import datetime
 import re
+import json
 import dicttools
 import platform
 import socket
@@ -938,8 +939,7 @@ class ClsParser:
 
         return result_list
 
-    @property
-    def http_key_tuples(self):
+    def http_key_tuples(self, data):
         """
         This function provides a list of unique tuples for the http chunk sending.
         Each tuple represents a key for collecting events to be sent in one chunk.
@@ -949,7 +949,7 @@ class ClsParser:
         [('customerId','azse_datasynch'), ('customerId','hei_datasynch'), ('customerId','azse_datasynch')]
         """
         t_list = []
-        for d in self.result_list:
+        for d in data:
             for (k, v) in d.items():
                 if k == self.__parser_http_out_chunk_key:
                     t_list.append((k, v))
@@ -975,6 +975,8 @@ class ClsParser:
         url = protocol + "://" + host + ":" + port + path
         data = "client_id=pushClient&grant_type=password&scope=sportal&username=" + user + "&password=" + pw
 
+        self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
+        self.__logger.debug('Get auth token from url: ' + url)
         result = ''
         with Popen(["curl", "-XPOST", "-s", "-H", content_type, url, "-d", data],
                    stdout=PIPE, bufsize=1, universal_newlines=True) as p:
@@ -990,21 +992,31 @@ class ClsParser:
         :param data: Data to be sent to the target url.
         :return: True id success, False if failed.
         """
+        intend = LOG_INTEND * ' '
+
         protocol = self.__parser_http_out_protocol
         host = self.__parser_http_out_hostname
         path = self.__parser_http_out_event_path
 
         authorization = "Authorization: Bearer " + self.curl_token()
 
-        for (k, v) in self.http_key_tuples:
+        self.__logger.info(LOG_MAX_TEXT_LEN * '-')
+        self.__logger.info('Send ' + str(len(data)) + ' events to SSD.')
+        for (k, v) in self.http_key_tuples(data):
             # calculate chunk of result list due to chunkKey
             c_list = [d for d in data if d[k] == v]
             url = protocol + "://" + host + path.replace(PH_CUSTOMER_ID, v)
-            with Popen(["curl", "-XPOST", "-s", "-H", authorization, url, "-d", c_list],
+            self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
+            self.__logger.debug(intend + 'Send ' + str(len(c_list)) + ' events for ' + v + '.')
+            self.__logger.debug(intend + 'URL: ' + url)
+            result = ''
+            with Popen(["curl", "-X POST", "-s", "-H ", authorization, url, "-d", json.dumps(c_list)],
                        stdout=PIPE, bufsize=1, universal_newlines=True) as p:
                 for line in p.stdout:
-                    print('{}'.format(line), end='')
-        return True
+                    result = result + line
+                    # print('{}'.format(line), end='')
+
+        return result
 
     def log_info(self):
         """
