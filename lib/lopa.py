@@ -978,7 +978,7 @@ class ClsParser:
         self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
         self.__logger.debug('Get auth token from url: ' + url)
         result = ''
-        with Popen(["curl", "-XPOST", "-s", "-H", content_type, url, "-d", data],
+        with Popen(["curl", "-XPOST", "-H", content_type, url, "-d", data],
                    stdout=PIPE, bufsize=1, universal_newlines=True) as p:
             for line in p.stdout:
                 result = result + line
@@ -989,33 +989,39 @@ class ClsParser:
         This functions posts the data into the target url via curl.
         The data is sent in chunks that are built on the basis of the same customerId.
         Because the target url does contain the customerId in it's path.
+        Every single json event is sent separately
         :param data: Data to be sent to the target url.
         :return: True id success, False if failed.
         """
         intend = LOG_INTEND * ' '
 
         protocol = self.__parser_http_out_protocol
+        port = self.__parser_http_out_port
         host = self.__parser_http_out_hostname
         path = self.__parser_http_out_event_path
 
-        authorization = "Authorization: Bearer " + self.curl_token()
+        json_token = json.loads(self.curl_token())  # contains multiple token parameters
+        access_token = json_token['access_token']  # extract the access token string exclusively
+        authorization = "authorization: Bearer " + access_token
+        content_type = "content-type: application/json"
 
         self.__logger.info(LOG_MAX_TEXT_LEN * '-')
         self.__logger.info('Send ' + str(len(data)) + ' events to SSD.')
+        result = ''
         for (k, v) in self.http_key_tuples(data):
             # calculate chunk of result list due to chunkKey
             c_list = [d for d in data if d[k] == v]
-            url = protocol + "://" + host + path.replace(PH_CUSTOMER_ID, v)
+            url = protocol + "://" + host + ":" + port + path.replace(PH_CUSTOMER_ID, v)
             self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
             self.__logger.debug(intend + 'Send ' + str(len(c_list)) + ' events for ' + v + '.')
             self.__logger.debug(intend + 'URL: ' + url)
-            result = ''
-            with Popen(["curl", "-X POST", "-s", "-H ", authorization, url, "-d", json.dumps(c_list)],
-                       stdout=PIPE, bufsize=1, universal_newlines=True) as p:
-                for line in p.stdout:
-                    result = result + line
-                    # print('{}'.format(line), end='')
-
+            # send every single json event separately
+            for c_event in c_list:
+                with Popen(["curl", "-XPOST", "-H", authorization, "-H", content_type, url, "-d", json.dumps(c_event)],
+                           stdout=PIPE, bufsize=1, universal_newlines=True) as p:
+                    for line in p.stdout:
+                        result += line
+            result += '\n'
         return result
 
     def log_info(self):
