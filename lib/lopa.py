@@ -257,6 +257,7 @@ class ClsParser:
         self.__parser_http_out_password = dict_parser['out']['http']['passWord']
         self.__parser_http_out_chunk_key = dict_parser['out']['http']['chunkKey']
         self.__parser_http_out_time_factor = dict_parser['out']['http']['timeFactor']
+
         # logger
         self.__logger = logger
 
@@ -264,13 +265,101 @@ class ClsParser:
     def result_file_path(self):
         return self.__parser_result_file_path
 
+    @property
+    def http_out_protocol(self):
+        try:
+            assert isinstance(self.__parser_http_out_protocol, str)
+            return self.__parser_http_out_protocol
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_port(self):
+        try:
+            assert isinstance(self.__parser_http_out_port, str)
+            return self.__parser_http_out_port
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_hostname(self):
+        try:
+            assert isinstance(self.__parser_http_out_hostname, str)
+            return self.__parser_http_out_hostname
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_token_path(self):
+        try:
+            assert isinstance(self.__parser_http_out_token_path, str)
+            return self.__parser_http_out_token_path
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_event_path(self):
+        try:
+            assert isinstance(self.__parser_http_out_event_path, str)
+            return self.__parser_http_out_event_path
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_username(self):
+        try:
+            assert isinstance(self.__parser_http_out_username, str)
+            return self.__parser_http_out_username
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_password(self):
+        try:
+            assert isinstance(self.__parser_http_out_password, str)
+            return self.__parser_http_out_password
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_chunk_key(self):
+        try:
+            assert isinstance(self.__parser_http_out_chunk_key, str)
+            return self.__parser_http_out_chunk_key
+        except AssertionError:
+            return None
+
+    @property
+    def http_out_time_factor(self):
+        try:
+            assert isinstance(self.__parser_http_out_time_factor, int)
+            return self.__parser_http_out_time_factor
+        except AssertionError:
+            return None
+
+    @property
+    def log_date_exists(self):
+        try:
+            assert isinstance(self.__log_date_exists, str)
+            return self.__log_date_exists
+        except AssertionError:
+            return None
+
+    @property
+    def log_file_path(self):
+        try:
+            assert isinstance(self.__log_file_path, str)
+            return self.__log_file_path
+        except ValueError:
+            return None
+
     def get_log_lines_number(self):
         """
         Get the number of lines in log file.
         :return: The number of lines in log file.
         """
         line_counter = 0
-        with open(self.__log_file_path, 'r') as fh:
+        with open(self.log_file_path, 'r') as fh:
             for _ in fh:
                 line_counter += 1
         return line_counter
@@ -329,7 +418,7 @@ class ClsParser:
         """
         filtered_chunk = []
         if filter_type == 'date':
-            if self.__log_date_exists:
+            if self.log_date_exists:
                 for item in chunk:
                     if self.in_time_range(item):
                         filtered_chunk.append(item)
@@ -344,9 +433,9 @@ class ClsParser:
         """
         Evaluates if log file lines contain datetime values
         :return: True if log file lines contain datetime values
-                 return self.__log_date_exists == 'yes'
+                 return self.log_date_exists == 'yes'
         """
-        return self.__log_date_exists == 'yes'
+        return self.log_date_exists == 'yes'
 
     def get_datetime(self, line):
         """
@@ -782,13 +871,24 @@ class ClsParser:
         :param citem: Normalized combi item containing search and found items
         :return: tuples list containing the results
         """
+        # time
+        #  date
+        if citem['date'] is None:
+            event_date = datetime.datetime.now()
+        else:
+            event_date = citem['date']
+        #  time factor
+        try:
+            time_factor = int(self.http_out_time_factor)
+        except AttributeError:
+            time_factor = 1
 
         # tuple list
         tlist = [(PH_ENVIRONMENT, self.__log_environment), (PH_BUSINESS_AREA, self.__log_business_area),
                  (PH_PARSER_ID, self.__parser_id), (PH_PARSER_REGEX, citem['regex']),
                  (PH_SOURCEFILE, self.__log_file_path), (PH_SOURCE_LINE_NUM, str(citem['number'])),
                  (PH_CONFIGFILE, CONFIG_FILE), (PH_EVENT_STATUS, citem['status']),
-                 (PH_EVENT_DATE, int(time.mktime(citem['date'].timetuple()) * self.__parser_http_out_time_factor)),
+                 (PH_EVENT_DATE, int(time.mktime(event_date.timetuple()) * time_factor)),
                  (PH_EVENT_MESSAGE, str(citem['message']))]
         # environment details
         for k, v in self.env_tuples.list:
@@ -852,7 +952,7 @@ class ClsParser:
         self.__logger.debug('Processing chunks of the log file.')
         i = 0
         while True:
-            # Get file content chunk after chunk to save memory
+            # Get file content chunk wise to save memory
             # A chunk contains a number of lines defined in config file via chunksize.
             chunk = ClsChunk(self.get_chunk())
             if not chunk.list:
@@ -865,10 +965,12 @@ class ClsParser:
             if self.__parser_filter_time:
                 self.__logger.debug('Filtering dates ..')
                 chunk_filtered_date = ClsChunk(self.filter_chunk(chunk.list, 'date'))
-            if not chunk_filtered_date.list:
-                self.__logger.debug('{:>12} {}'.format('filtered:', str(None)))
-                continue
-            self.__logger.debug('{:>12} {}'.format('filtered:', chunk_filtered_date.log_info))
+                if not chunk_filtered_date.list:
+                    self.__logger.debug('{:>12} {}'.format('filtered:', str(None)))
+                    continue
+                self.__logger.debug('{:>12} {}'.format('filtered:', chunk_filtered_date.log_info))
+            else:
+                chunk_filtered_date = ClsChunk(chunk.list)
             # filter keys
             self.__logger.debug('Filtering keys ..')
             chunk_filtered_keys = ClsChunk(self.filter_chunk(chunk_filtered_date.list, 'keys'))
@@ -951,7 +1053,7 @@ class ClsParser:
         t_list = []
         for d in data:
             for (k, v) in d.items():
-                if k == self.__parser_http_out_chunk_key:
+                if k == self.http_out_chunk_key:
                     t_list.append((k, v))
         # create a set of tuples in order to obtain unique items
         t_set = set(t_list)
@@ -964,12 +1066,12 @@ class ClsParser:
         after posting username and password.
         :return: authentication token
         """
-        protocol = self.__parser_http_out_protocol
-        port = self.__parser_http_out_port
-        host = self.__parser_http_out_hostname
-        path = self.__parser_http_out_token_path
-        user = self.__parser_http_out_username
-        pw = self.__parser_http_out_password
+        protocol = self.http_out_protocol
+        port = self.http_out_port
+        host = self.http_out_hostname
+        path = self.http_out_token_path
+        user = self.http_out_username
+        pw = self.http_out_password
 
         content_type = "content-type: application/x-www-form-urlencoded"
         url = protocol + "://" + host + ":" + port + path
@@ -995,10 +1097,13 @@ class ClsParser:
         """
         intend = LOG_INTEND * ' '
 
-        protocol = self.__parser_http_out_protocol
-        port = self.__parser_http_out_port
-        host = self.__parser_http_out_hostname
-        path = self.__parser_http_out_event_path
+        try:
+            protocol = self.http_out_protocol
+            port = self.http_out_port
+            host = self.http_out_hostname
+            path = self.http_out_event_path
+        except:
+            return None
 
         json_token = json.loads(self.curl_token())  # contains multiple token parameters
         access_token = json_token['access_token']  # extract the access token string exclusively
@@ -1062,7 +1167,7 @@ class ClsParser:
         print('\tlog_type: {}'.format(self.__log_type))
         print('\tlog_pathname: {}'.format(self.__log_pathname))
         print('\tlog_filename: {}'.format(self.__log_filename))
-        print('\tlog_date_exists: {}'.format(self.__log_date_exists))
+        print('\tlog_date_exists: {}'.format(self.log_date_exists))
         print('\tlog_date_format: {}'.format(self.__log_date_format))
         print('\tlog_date_regex: {}'.format(self.__log_date_regex))
         print('\tparser_id: {}'.format(self.__parser_id))

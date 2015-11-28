@@ -1,4 +1,4 @@
-###############################################################################
+#########################################################################################
 # LOG PARSER
 #                                                                  
 # Id: logparser.yml 001 2015-10-05
@@ -6,16 +6,16 @@
 # Author: Ralf Kilian
 # Date: 2015-10-05
 # LastChangedBy: Ralf Kilian   
-###############################################################################
+#########################################################################################
 
-###############################################################################
+#########################################################################################
 # File:          logparser.yml
 # Description:   Logparser configuration file
 # Package :      Data Synchronzaion Monitoring
-###############################################################################
+#########################################################################################
 
-###############################################################################
-# Function:
+#########################################################################################
+# FUNCTION:
 # The intention of the logparser is to parse log files and search for certain
 # patterns. From the found items the log parser creates events in form of JSON
 # records and sends them to the Service Status Dashboard. The latter translates
@@ -23,27 +23,133 @@
 #
 # Hierarchy
 # |- customer
-# |-- service
-# |--- redundancy groups (not used)
-# |---- instance
+# |-- environment
+# |--- service
+# |---- redundancy groups (not used)
+# |----- instance
 # 
 # Example
 # |- AZSE - DataSynch
-# |-- CUST_HPSM_CONTACT
-# |---- FILE_AGE
+# |-- EMEA PROD
+# |--- CUST_HPSM_CONTACT
+# |---- (not used)
+# |----- FILE_AGE
 #
-###############################################################################
+#########################################################################################
 
-###############################################################################
-# Structure:								       
-# - defaults: Templates, which can be used multiple times in different places
-#			  of the configuration file.
+#########################################################################################
+# STRUCTURE:
+# - defaults: Templates, which can be used multiple times at different places
+#		of the configuration file.
 # - logs: Log file instances, that are supposed to be parsed by the logparser.
 # - parser: Parser instances, that parse the log files.
+#     keys: Hierarchical structure of keys used for combinations of regex searches.
+#       name: Unique name of key
+#       text: Key text used for the regex search
+#       out: Key text used for the result (output)
 # - logging: Configuration of the logging of the logparser. The logparser itself
 #            is also expected to write logs about it's activities.
 # - out: Describes how the results of the logparser are delivered.
-###############################################################################
+#     file: Results are saved into files.
+#     http: Results are sent via curl as an http request
+#########################################################################################
+
+#########################################################################################
+# PHILOSOPHY:
+# The philosophy will try to explain the main idea of the logparser.
+#
+# - SEARCH OBJECTS
+# The search objects are supposed to be the logfiles. There can be an unlimited number
+# of logfile definitions.
+#
+# - PARSER
+# The parsers are designed to perform the search. There can be as many parser
+# definitions as wanted. Every parser can be assigned to multiple logfiles.
+#
+# - WORKFLOW
+# Every logfile is checked, whether it is asigned to a parser. If yes then the parser
+# is checked, whether it's active. If yes than the parser is run through the logfile.
+#
+#########################################################################################
+
+#########################################################################################
+# TEMPLATES:
+# Templates are used for recurring values. A template once defined can be used
+# at various places within the configuration file.
+#
+# - DEFINITION
+#   name: &TEMPLATE: Definition of the template 'TEMPLATE'
+# - USAGE
+#   <<: *TEMPLATE: Inserting the template 'TEMPLATE'
+# - WHERE
+#   The template tree starts with the root key 'defaults'.
+# + DESCRIPTION
+# - constants: Global constants
+# - properties: Defines properties sets used in the result json record.
+# - events: Defines event sets used in the key definitions
+#           resulting in regex search strings.
+# - solutions: Defines solutions sets used in the key definitions
+#              resulting in regex search strings.
+# - regex: Defines regex for multiple usage.
+# - selection: Defines which data is searched for event.
+# - results: Defines how the result json record is composed.
+#
+#########################################################################################
+
+#########################################################################################
+# VARIABLES:
+# Variables may be used - like templates - multiple times at different places of
+# the configutation file. With one decisive differnce. The variables are evaluated
+# during the runtime of the logparser. The templates are defined before runtime.
+#
+#   Syntax: %variable%
+#   Variables are defined by enclosing them into the % character like %variable%.
+#   They are placed at the right side (value) of the {key: value} pair. The variable
+#   names are case sensitive and must be provided in exactly the same way as listed here.
+#
+#   Example:
+#   logFile: %sourceFile%
+#   The key 'logFile' will get the value of the variable %sourceFile% during runtime.
+#
+# + SOURCE:
+#   All variables that describe the data source.
+# - sourceFile: Name of the parsed logfile
+# - sourceLineNum: Line number where the event originates from
+# - parserId: ID of the parser (PRS0001, ..)
+# - configFile: Name of the configuration file
+# - sourceSystem: Operating system of the source (Windows, Linux, ..)
+#
+# + PYTHON:
+#   All variables that describe the Python environment.
+# - pythonImplementation: Implementation of Python (CPython, ..)
+# - pythonVersion: Version of Python (CPython, ..)
+# - pythonScript: Full pathname of the logparser python script
+# 
+# + KEYS
+#   All variables that represent the regex search keys, with key 1 as the root key.
+# - k1: Key 1 of the parser keys
+# - k2: Key 2 of the parser keys
+# - ..
+# + REGEX
+#   All variables that are typically used in the regex generation.
+# - dt: Date based on the date definition in the logfile section ['logs']['date']
+# - kn: Refers to ['kn']['text'], with n = {1,2,3,4}
+#
+# + RESULT
+#   All variables that are typically used in the result.
+# - eventDate: Date which is extracted from log file, given in UNIX time
+#              - Output to file, then in seconds (s)
+#              - Output to http, then in milliseconds (ms)
+# - gn: Refers to the found regex group n, with n = {1,2,3, ..8}
+# - kn: Refers to the key ['kn']['out'], with n = {1,2, ..4}
+# - environment: Takes the envorinment value from logfile ['logs']['envorinment']
+# - businessArea: Takes the envorinment value from logfile ['logs']['businessArea']
+# - eventStatus: This value depents on the logic of the regex search
+#                Possible values are 'ok', 'error' or 'warning'
+# - sourceHost: Hostname of the source server
+# - eventMessage: Either the matched regex string or 'Not found:' + regex string.
+#
+#########################################################################################
 ---
 defaults:
     constants:
@@ -66,13 +172,17 @@ defaults:
                 version: '%pythonVersion%'
                 script: '%pythonScript%'
     events:
-        file: &FILE_EVENTS
+        file: &FILE_EVENTS  # act_mon events in linux
             keys:
                 - {name: 'file_size', text: 'SIZE', out: 'FILE_SIZE'}
                 - {name: 'file_age', text: 'AGE', out: 'FILE_AGE'}
                 - {name: 'file_missing', text: 'MISSING', out: 'FILE_MISSING'}
                 - {name: 'file_number', text: 'NFILES', out: 'FILE_NUMBER'}
-        onbd: &ONB_EVENTS_D # double onboarding events with START and END
+        filew: &FILE_EVENTS_W  # act_mon events in windows
+            keys:
+                - {name: 'file_missing', text: 'COULD NOT BE FOUND', out: 'FILE_MISSING'}
+                - {name: 'file_number', text: 'FILE COUNT', out: 'FILE_NUMBER'}
+        onbd: &ONB_EVENTS_D  # double onboarding events with START and END
             keys:
                 - {name: 'onb_autoload', text: 'ONB;AUTOLOAD', out: 'ONB_AUTOLOAD'}
                 - {name: 'ldss_load', text: 'LDSS;LOAD', out: 'LDSS_LOAD'}
@@ -80,7 +190,7 @@ defaults:
                 - {name: 'onb_transformation', text: 'ONB;TRANSFORMATION', out: 'ONB_TRANSFORMATION'}
                 - {name: 'ovsc_transformation', text: 'OVSC;TRANSFORMATION', out: 'OVSC_TRANSFORMATION'}
                 - {name: 'dss_wrapperscript', text: 'LDSS;WRAPPERSCRIPT', out: 'LDSS_WRAPPERSCRIPT'}
-        onbs: &ONB_EVENTS_S # single onboarding events
+        onbs: &ONB_EVENTS_S  # single onboarding events
             keys:
                 - {name: 'ovsc_hpp_script', text: 'OVSC;HPP SCRIPT', out: 'OVSC_HPP_SCRIPT'}
                 - {name: 'onb_release', text: 'ONB;RELEASE', out: 'ONB_RELEASE'}
@@ -103,6 +213,10 @@ defaults:
                 name: 'cust_hpam_device'
                 text: 'CUST_HPAM_DEVICE'
                 out: 'CUST_HPAM_DEVICE'
+            aca:  &FILE_AI_CU_AS
+                name: 'ami_cust_asset'
+                text: 'AMI_CUST_ASSET'
+                out: 'AMI_CUST_ASSET'
         onb:
             cac:  &ONB_CU_AM_CO
                 name: 'cust_asset_contact'
@@ -116,10 +230,10 @@ defaults:
                 name: 'cust_ovsc_device'
                 text: 'OVSC_DEVICE'
                 out: 'CUST_HPSM_DEVICE'
-            cad:  &ONB_CU_AM_DV
+            cad:  &ONB_CU_AM_AS
                 name: 'cust_asset_asset'
                 text: 'ASSET_ASSET'
-                out: 'CUST_HPAM_DEVICE'
+                out: 'CUST_HPAM_ASSET'
     regex:
         onb: &ONB_REGEX
             regex:
@@ -185,7 +299,7 @@ defaults:
 
 logs:
     -   id: 'LOG0001'
-        environment: 'CDC_EMEA_PROD'
+        environment: 'PROD'
         businessArea: 'EMEA'
         name: 'actmon'
         type: 'flatFile'
@@ -196,7 +310,7 @@ logs:
             format: '%a %b %d %H:%M:%S %Y'
             regex: '[a-zA-Z]+\s+[a-zA-Z]+\s+[0-9]+\s+[0-9]+:[0-9]+:[0-9]+\s+[0-9]+'
     -   id: 'LOG0002'
-        environment: 'CDC_EMEA_PROD'
+        environment: 'PROD'
         businessArea: 'EMEA'
         name: 'cdc_db_extract'
         type: 'flatFile'
@@ -204,6 +318,17 @@ logs:
         fileName: 'onb_history.csv'
         date:
             exists : 'yes'
+            format: '%Y-%m-%d %H:%M:%S'
+            regex: '[0-9]+-[0-9]+-[0-9]+\s+[0-9]+:[0-9]+:[0-9]+'
+    -   id: 'LOG0003'
+        environment: 'PROD'
+        businessArea: 'EMEA'
+        name: 'actmon_win'
+        type: 'flatFile'
+        pathName: './in/win'
+        fileName: 'act_mon.log'
+        date:
+            exists : 'no'
             format: '%Y-%m-%d %H:%M:%S'
             regex: '[0-9]+-[0-9]+-[0-9]+\s+[0-9]+:[0-9]+:[0-9]+'
 
@@ -274,7 +399,7 @@ parser:
 
     -   id: 'PRS0002'
         text: 'Looks for start-end database events like ONB_LOAD, ONB_VALIDATION etc.'
-        active: 'yes'
+        active: 'no'
         logId: ['LOG0002']
         mode:
             id: 2   # 1-single, 2-multi (start, .., end)
@@ -310,7 +435,7 @@ parser:
 
     -   id: 'PRS0003'
         text: 'Looks for single database events like ONB_RELEASE, OVSC_HPP_SCRIPT etc.'
-        active: 'yes'
+        active: 'no'
         logId: ['LOG0002']
         mode:
             id: 1   # 1-single, 2-multi (start, .., end)
@@ -331,6 +456,39 @@ parser:
                             - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_S}
         <<: *ONB_REGEX
         <<: *ONB_SELECTION
+        <<: *ONB_RESULT
+        out:
+            <<: *ONB_OUT
+            
+    -   id: 'PRS0004'
+        text: 'Looks for file events like FILE_SIZE, FILE_AGE etc.'
+        active: 'yes'
+        logId: ['LOG0003']
+        mode:
+            id: 1   # 1-single, 2-pair (start, end)
+        keys:
+            -   name: 'coba'
+                text: 'COBA'
+                out: 'COBA'
+                keys:
+                    -   <<: *FILE_AI_CU_AS
+                        keys:
+                            - {name: 'idropbox-coba-prod', text: 'IDROPBOX-COBA-PROD', out: 'AMI_CUST_ASSET', <<: *FILE_EVENTS_W}
+        regex:
+            positive: 'no'  # 'no' - if no match then ok, 'yes' - if match then ok
+            text: '([^\[]*)(\[.*\])(.*%k4%.*%k3%.*)'
+        selection:
+            chunk:
+                size: 300 # chunk size in lines
+                offset: -1 # negative offset gets chunks from the end of file
+                number: 1 # number of chunks to process
+            time:
+                active: 'no' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
+                offset: {'days': -500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+            group:
+                slice: '-1::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
+            status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
         <<: *ONB_RESULT
         out:
             <<: *ONB_OUT
