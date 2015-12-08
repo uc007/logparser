@@ -3,6 +3,7 @@ import logging
 import logging.config
 import json
 import sys
+import getopt
 
 # my modules
 sys.path.append('./lib')
@@ -12,10 +13,43 @@ __author__ = 'Ralf'
 
 # !/usr/bin/env python3
 
+def show_usage():
+    """
+    This function prints how to use the logparser in the command line
+    :rtype : str
+    :return: shows (prints) the usage and options of the logparser command
+    """
+    s_usage = \
+"""Usage: logparser.py [options ...]
+Options:
+-c, --config-file FILE  Set up the config file to use, default ./config/logparser.yml
+-h, --help      This help text
+    --no-send   Don't send data"""
+    print('{}'.format(s_usage))
 
 def main():
 
-    with open(lopa.CONFIG_FILE, 'r') as stream:
+    # default values
+    c_file = lopa.CONFIG_FILE
+    no_send = False
+
+    # get command line options
+    try:
+        opts, args = getopt.getopt(sys.argv[1:],"hc:",["cfile=","no-send"])
+    except getopt.GetoptError:
+        show_usage()
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt in ('-h', "--help"):
+            show_usage()
+            sys.exit()
+        elif opt in ("-c", "--config-file"):
+            c_file = arg
+        elif opt == "--no-send":
+            no_send = True
+
+    # read configuration file
+    with open(c_file, 'r') as stream:
         cfg = yaml.load(stream)
 
     # print(yaml.dump(cfg))
@@ -51,8 +85,9 @@ def main():
                         obj_parser = lopa.ClsParser(log, par, logger)
                         obj_parser.log_info()
                         l_par = obj_parser.result_list
-                        obj_parser.curl_result(l_par)
-                        # print('token: {}'.format(obj_parser.curl_result(l_par)))
+                        if not no_send:
+                            obj_parser.curl_result(l_par)
+                            # print('token: {}'.format(obj_parser.curl_result(l_par)))
                         for res in l_par:
                             l_all.append(res)
                         with open(obj_parser.result_file_path, 'w') as fh:

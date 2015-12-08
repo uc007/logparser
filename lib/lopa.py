@@ -20,6 +20,7 @@ LOG_INTEND = 4
 LOG_MAX_TEXT_LEN = 80
 KEY_KEYS = 'keys'
 CONFIG_FILE = './config/logparser.yml'
+VAR_DELIMITER = '%'
 #  placeholders
 PH_DATE = '%dt%'
 PH_BUSINESS_AREA = '%businessArea%'
@@ -34,6 +35,7 @@ PH_PARSER_REGEX = '%parserRegex%'
 PH_SOURCEFILE = '%sourceFile%'
 PH_SOURCE_LINE_NUM = '%sourceLineNum%'
 PH_SOURCE_HOST = '%sourceHost%'
+PH_SOURCE_HOST_SHORT = '%sourceHostShort%'
 PH_SOURCE_SYSTEM = '%sourceSystem%'
 PH_PYTHON_COMPILER = '%pythonCompiler%'
 PH_PYTHON_VERSION = '%pythonVersion%'
@@ -149,8 +151,10 @@ class ClsEnvTuples:
         self.__list = []
         if socket.gethostname().find('.') >= 0:
             self.__list.append((PH_SOURCE_HOST, socket.gethostname()))
+            self.__list.append((PH_SOURCE_HOST_SHORT, socket.gethostname().split('.')[0]))
         else:
             self.__list.append((PH_SOURCE_HOST, socket.gethostbyaddr(socket.gethostname())[0]))
+            self.__list.append((PH_SOURCE_HOST_SHORT, socket.gethostname()))
         self.__list.append((PH_SOURCE_SYSTEM, platform.system()))
         self.__list.append((PH_PYTHON_COMPILER, platform.python_compiler()))
         self.__list.append((PH_PYTHON_VERSION, platform.python_version()))
@@ -417,10 +421,17 @@ class ClsParser:
         :return: List containing the filtered lines
         """
         filtered_chunk = []
+        take_item = False  # don't take items until the first item with a date is compliant
         if filter_type == 'date':
             if self.log_date_exists:
                 for item in chunk:
-                    if self.in_time_range(item):
+                    if item['date']:
+                        if self.in_time_range(item):
+                            filtered_chunk.append(item)
+                            take_item = True  # switch take_item ON to take subsequent items without date
+                        elif take_item:
+                            take_item = False  # switch take_item OFF to ignore subsequent items without date
+                    elif take_item:
                         filtered_chunk.append(item)
         else:
             if filter_type == 'keys':
@@ -884,6 +895,7 @@ class ClsParser:
             time_factor = 1
 
         # tuple list
+        tlist_all = []
         tlist = [(PH_ENVIRONMENT, self.__log_environment), (PH_BUSINESS_AREA, self.__log_business_area),
                  (PH_PARSER_ID, self.__parser_id), (PH_PARSER_REGEX, citem['regex']),
                  (PH_SOURCEFILE, self.__log_file_path), (PH_SOURCE_LINE_NUM, str(citem['number'])),
@@ -896,7 +908,7 @@ class ClsParser:
         # out keys %k..%
         for i, o in enumerate(citem['out'], start=1):
             tlist.append(('%k' + str(i) + '%', o))
-            tlist.append(('%k' + str(i) + '.lower%', str(o).lower()))
+            # tlist.append(('%k' + str(i) + '.lower%', str(o).lower()))
         # regex groups %g..%
         if citem['text']:
             m = re.search(citem['regex'], citem['text'])
@@ -906,7 +918,19 @@ class ClsParser:
         else:
             for i in range(1, 10):
                 tlist.append(('%g' + str(i) + '%', 'None'))
-        return tlist
+
+        for k, v in tlist:
+            tlist_all.append((k, v))  # original tuple
+            # lower and upper case tuples
+            if isinstance(v, str):
+                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.lower' + VAR_DELIMITER, v.lower()))
+                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.upper' + VAR_DELIMITER, v.upper()))
+            else:
+                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.lower' + VAR_DELIMITER, v))  # unchanged
+                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.upper' + VAR_DELIMITER, v))  # unchanged
+
+        return tlist_all
+
 
     @staticmethod
     def fill_placeholders(obj_dict, tuple_list):

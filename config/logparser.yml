@@ -146,7 +146,8 @@
 # - businessArea: Takes the envorinment value from logfile ['logs']['businessArea']
 # - eventStatus: This value depents on the logic of the regex search
 #                Possible values are 'ok', 'error' or 'warning'
-# - sourceHost: Hostname of the source server
+# - sourceHost: FQDN hostname of the source server
+# - sourceHostShort: Short hostname of the source server
 # - eventMessage: Either the matched regex string or 'Not found:' + regex string.
 #
 #########################################################################################
@@ -180,6 +181,7 @@ defaults:
                 - {name: 'file_number', text: 'NFILES', out: 'FILE_NUMBER'}
         filew: &FILE_EVENTS_W  # act_mon events in windows
             keys:
+                - {name: 'file_size', text: 'OUTSIDE THEIR CONFIGURED SIZE', out: 'FILE_SIZE'}
                 - {name: 'file_missing', text: 'COULD NOT BE FOUND', out: 'FILE_MISSING'}
                 - {name: 'file_number', text: 'FILE COUNT', out: 'FILE_NUMBER'}
         onbd: &ONB_EVENTS_D  # double onboarding events with START and END
@@ -266,17 +268,18 @@ defaults:
                     <<: *CONST_EVENT_STATUS
                 fields:
                     created: '%eventDate%'
-                    customerId: '%k1.lower%_datasynch' #  value from key 1 in 'out'
+                    customerId: '%k1.lower%_datasynch' # value from key 1 in 'out'
                     customerName: '%k1% - DataSynch'
                     environment: '%environment%'
                     businessArea: '%businessArea%'
                     serviceId: '%k2%'
                     serviceName: ''
-                    instanceId: '%k4%'
+                    instanceId: '%k4%__%sourceHostShort.upper%'
                     instanceType: '%k3%'
                     eventType: '%eventStatus%'
-                    hostId: '%sourceHost%'
+                    hostId: '%sourceHost.lower%'
                     creator: 'LogParser'
+                    ttl: 3888000000 # time in ms, default: no expiration, currently: 45 days
                     properties:
                         message: '%eventMessage%' # or %g3% for regex result group 3
                         <<: *PROP_SOURCE
@@ -328,9 +331,9 @@ logs:
         pathName: './in/win'
         fileName: 'act_mon.log'
         date:
-            exists : 'no'
-            format: '%Y-%m-%d %H:%M:%S'
-            regex: '[0-9]+-[0-9]+-[0-9]+\s+[0-9]+:[0-9]+:[0-9]+'
+            exists : 'yes'
+            format: '%Y%m%d %H%M%S'
+            regex: '[0-9]{8}\s+[0-9]{6}'
 
 parser:
     -   id: 'PRS0001'
@@ -368,8 +371,8 @@ parser:
                 number: 1 # number of chunks to process
             time:
                 active: 'yes' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
-                offset: {'days': -500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
-                interval: {'days': 500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                offset: {'days': -98} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 1} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
             group:
                 slice: '-1::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
@@ -385,11 +388,12 @@ parser:
                 businessArea: '%businessArea%'
                 serviceId: '%k2%'
                 serviceName: ''
-                instanceId: '%k3%'
+                instanceId: '%k3%__%sourceHostShort.upper%'
                 instanceType: ''
                 eventType: '%eventStatus%'
                 hostId: '%sourceHost%'
                 creator: 'LogParser'
+                ttl: 3888000000 # time in ms, default: no expiration, currently: 45 days
                 properties:
                     message: '%eventMessage%' # or %g3% for regex result group 3
                     <<: *PROP_SOURCE
@@ -462,7 +466,7 @@ parser:
             
     -   id: 'PRS0004'
         text: 'Looks for file events like FILE_SIZE, FILE_AGE etc.'
-        active: 'yes'
+        active: 'no'
         logId: ['LOG0003']
         mode:
             id: 1   # 1-single, 2-pair (start, end)
@@ -483,9 +487,9 @@ parser:
                 offset: -1 # negative offset gets chunks from the end of file
                 number: 1 # number of chunks to process
             time:
-                active: 'no' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
-                offset: {'days': -500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
-                interval: {'days': 500} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                active: 'yes' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
+                offset: {'days': -3} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 2} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
             group:
                 slice: '-1::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
