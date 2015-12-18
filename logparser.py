@@ -13,6 +13,7 @@ __author__ = 'Ralf'
 
 # !/usr/bin/env python3
 
+
 def show_usage():
     """
     This function prints how to use the logparser in the command line
@@ -23,19 +24,22 @@ def show_usage():
 """Usage: logparser.py [options ...]
 Options:
 -c, --config-file FILE  Set up the config file to use, default ./config/logparser.yml
+-o, --conn-file FILE  Set up the connection file to use, default ./config/connections.yml
 -h, --help      This help text
     --no-send   Don't send data"""
     print('{}'.format(s_usage))
+
 
 def main():
 
     # default values
     c_file = lopa.CONFIG_FILE
+    o_file = lopa.CONN_FILE
     no_send = False
 
     # get command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"hc:",["cfile=","no-send"])
+        opts, args = getopt.getopt(sys.argv[1:], "hc:o:", ["config-file=", "conn-file=", "no-send"])
     except getopt.GetoptError:
         show_usage()
         sys.exit(2)
@@ -45,12 +49,18 @@ def main():
             sys.exit()
         elif opt in ("-c", "--config-file"):
             c_file = arg
+        elif opt in ("-o", "--conn-file"):
+            o_file = arg
         elif opt == "--no-send":
             no_send = True
 
     # read configuration file
     with open(c_file, 'r') as stream:
         cfg = yaml.load(stream)
+        
+    # read connection file
+    with open(o_file, 'r') as stream:
+        conns = yaml.load(stream)
 
     # print(yaml.dump(cfg))
 
@@ -86,7 +96,9 @@ def main():
                         obj_parser.log_info()
                         l_par = obj_parser.result_list
                         if not no_send:
-                            obj_parser.curl_result(l_par)
+                            for con in conns['connections']:
+                                if con['id'] in par['out']['http']['connections']:
+                                    obj_parser.curl_result(l_par, con)
                             # print('token: {}'.format(obj_parser.curl_result(l_par)))
                         for res in l_par:
                             l_all.append(res)

@@ -199,10 +199,26 @@ defaults:
                 - {name: 'ovsc_release', text: 'OVSC;RELEASE', out: 'OVSC_RELEASE'}
     solutions:
         file:
+            aca:  &FILE_AI_CU_AS
+                name: 'ami_cust_asset'
+                text: 'AMI_CUST_ASSET'
+                out: 'AMI_CUST_ASSET'
+            asd:  &FILE_AI_SM_DV
+                name: 'ami_hpsm_device'
+                text: 'AMI_HPSM_DEVICE'
+                out: 'AMI_HPSM_DEVICE'
+            asd:  &FILE_AC_SM_DV
+                name: 'ovac_hpsm_device'
+                text: 'OVAC_HPSM_DEVICE'
+                out: 'OVAC_HPSM_DEVICE'
             cac:  &FILE_CU_AM_CO
                 name: 'cust_hpam_contact'
                 text: 'CUST_HPAM_CONTACT'
                 out: 'CUST_HPAM_CONTACT'
+            cad:  &FILE_CU_AM_DV
+                name: 'cust_hpam_device'
+                text: 'CUST_HPAM_DEVICE'
+                out: 'CUST_HPAM_DEVICE'
             csc:  &FILE_CU_SM_CO
                 name: 'cust_hpsm_contact'
                 text: 'CUST_HPSM_CONTACT'
@@ -211,19 +227,24 @@ defaults:
                 name: 'cust_hpsm_device'
                 text: 'CUST_HPSM_DEVICE'
                 out: 'CUST_HPSM_DEVICE'
-            cad:  &FILE_CU_AM_DV
-                name: 'cust_hpam_device'
-                text: 'CUST_HPAM_DEVICE'
-                out: 'CUST_HPAM_DEVICE'
-            aca:  &FILE_AI_CU_AS
-                name: 'ami_cust_asset'
-                text: 'AMI_CUST_ASSET'
-                out: 'AMI_CUST_ASSET'
+
         onb:
+            asd:  &ONB_AI_SM_DV
+                name: 'ami_hpsm_device'
+                text: 'OVSC_DEVICE'
+                out: 'AMI_HPSM_DEVICE'
+            asd:  &ONB_AC_SM_DV
+                name: 'ovac_hpsm_device'
+                text: 'OVSC_DEVICE'
+                out: 'OVAC_HPSM_DEVICE'
             cac:  &ONB_CU_AM_CO
                 name: 'cust_asset_contact'
                 text: 'ASSET_CONTACT'
                 out: 'CUST_HPAM_CONTACT'
+            cad:  &ONB_CU_AM_AS
+                name: 'cust_asset_asset'
+                text: 'ASSET_ASSET'
+                out: 'CUST_HPAM_ASSET'
             csc:  &ONB_CU_SM_CO
                 name: 'cust_ovsc_contact'
                 text: 'OVSC_CONTACT'
@@ -232,10 +253,6 @@ defaults:
                 name: 'cust_ovsc_device'
                 text: 'OVSC_DEVICE'
                 out: 'CUST_HPSM_DEVICE'
-            cad:  &ONB_CU_AM_AS
-                name: 'cust_asset_asset'
-                text: 'ASSET_ASSET'
-                out: 'CUST_HPAM_ASSET'
     regex:
         onb: &ONB_REGEX
             regex:
@@ -279,7 +296,7 @@ defaults:
                     eventType: '%eventStatus%'
                     hostId: '%sourceHost.lower%'
                     creator: 'LogParser'
-                    ttl: 3888000000 # time in ms, default: no expiration, currently: 45 days
+                    ttl: 1296000000 # time in ms, default: no expiration, 1 day = 86400000
                     properties:
                         message: '%eventMessage%' # or %g3% for regex result group 3
                         <<: *PROP_SOURCE
@@ -290,13 +307,7 @@ defaults:
                 pathName: './out'
                 fileName: 'events_%parserId%.json'
             http:
-                protocol: 'http'
-                port: '8080'
-                hostName: '<hostname>'
-                tokenPath: '/hpdashboard/oauth/token'
-                eventPath: '/hpdashboard/restapi/customers/%customerId%/events'
-                userName: '<username>'
-                passWord: '<password>'
+                connections: ['CON_SSD_PRE-PROD']
                 chunkKey: 'customerId' # key for collecting events, that are sent in one chunk
                 timeFactor: 1000 # with http send to ssd the UNIX time is expected im ms instead of s
 

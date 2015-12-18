@@ -20,9 +20,11 @@ LOG_INTEND = 4
 LOG_MAX_TEXT_LEN = 80
 KEY_KEYS = 'keys'
 CONFIG_FILE = './config/logparser.yml'
+CONN_FILE = './config/connections.yml'
 VAR_DELIMITER = '%'
 #  placeholders
 PH_DATE = '%dt%'
+PH_DATE_NOW = '%dtNow%'
 PH_BUSINESS_AREA = '%businessArea%'
 PH_CONFIGFILE = '%configFile%'
 PH_CUSTOMER_ID = '%customerId%'
@@ -250,15 +252,8 @@ class ClsParser:
         self.__parser_result_fields = dict_parser['result']['fields']
         self.env_tuples = ClsEnvTuples()
         self.__parser_result_file_path = dict_parser['out']['file']['pathName'] + '/' + \
-                                         dict_parser['out']['file']['fileName']
+            dict_parser['out']['file']['fileName']
         self.__parser_result_file_path = self.__parser_result_file_path.replace(PH_PARSER_ID, self.__parser_id)
-        self.__parser_http_out_protocol = dict_parser['out']['http']['protocol']
-        self.__parser_http_out_port = dict_parser['out']['http']['port']
-        self.__parser_http_out_hostname = dict_parser['out']['http']['hostName']
-        self.__parser_http_out_token_path = dict_parser['out']['http']['tokenPath']
-        self.__parser_http_out_event_path = dict_parser['out']['http']['eventPath']
-        self.__parser_http_out_username = dict_parser['out']['http']['userName']
-        self.__parser_http_out_password = dict_parser['out']['http']['passWord']
         self.__parser_http_out_chunk_key = dict_parser['out']['http']['chunkKey']
         self.__parser_http_out_time_factor = dict_parser['out']['http']['timeFactor']
 
@@ -268,62 +263,6 @@ class ClsParser:
     @property
     def result_file_path(self):
         return self.__parser_result_file_path
-
-    @property
-    def http_out_protocol(self):
-        try:
-            assert isinstance(self.__parser_http_out_protocol, str)
-            return self.__parser_http_out_protocol
-        except AssertionError:
-            return None
-
-    @property
-    def http_out_port(self):
-        try:
-            assert isinstance(self.__parser_http_out_port, str)
-            return self.__parser_http_out_port
-        except AssertionError:
-            return None
-
-    @property
-    def http_out_hostname(self):
-        try:
-            assert isinstance(self.__parser_http_out_hostname, str)
-            return self.__parser_http_out_hostname
-        except AssertionError:
-            return None
-
-    @property
-    def http_out_token_path(self):
-        try:
-            assert isinstance(self.__parser_http_out_token_path, str)
-            return self.__parser_http_out_token_path
-        except AssertionError:
-            return None
-
-    @property
-    def http_out_event_path(self):
-        try:
-            assert isinstance(self.__parser_http_out_event_path, str)
-            return self.__parser_http_out_event_path
-        except AssertionError:
-            return None
-
-    @property
-    def http_out_username(self):
-        try:
-            assert isinstance(self.__parser_http_out_username, str)
-            return self.__parser_http_out_username
-        except AssertionError:
-            return None
-
-    @property
-    def http_out_password(self):
-        try:
-            assert isinstance(self.__parser_http_out_password, str)
-            return self.__parser_http_out_password
-        except AssertionError:
-            return None
 
     @property
     def http_out_chunk_key(self):
@@ -790,12 +729,17 @@ class ClsParser:
             slice_str = '-' + str(elist.__len__) + '::'
             c_item_found_sliced = self.sliced_list(c_item_found_sorted, slice_str)
 
+            str_last_item_date = None
             assert isinstance(c_item_found_sliced, list)
             i = 0
             for f in c_item_found_sliced:
-                rs = re.search(citem['regex'], f['text'])
-                if not re.search(elist[i], rs.group(rgrp)):
-                    return False
+                if str_last_item_date:
+                    if not f['date'] == str_last_item_date:
+                        rs = re.search(citem['regex'], f['text'])
+                        if not re.search(elist[i], rs.group(rgrp)):
+                            return False
+                else:
+                    str_last_item_date = f['date']
                 i += 1
             return True
 
@@ -884,6 +828,7 @@ class ClsParser:
         """
         # time
         #  date
+        date_now = datetime.datetime.now()
         if citem['date'] is None:
             event_date = datetime.datetime.now()
         else:
@@ -895,42 +840,42 @@ class ClsParser:
             time_factor = 1
 
         # tuple list
-        tlist_all = []
-        tlist = [(PH_ENVIRONMENT, self.__log_environment), (PH_BUSINESS_AREA, self.__log_business_area),
-                 (PH_PARSER_ID, self.__parser_id), (PH_PARSER_REGEX, citem['regex']),
-                 (PH_SOURCEFILE, self.__log_file_path), (PH_SOURCE_LINE_NUM, str(citem['number'])),
-                 (PH_CONFIGFILE, CONFIG_FILE), (PH_EVENT_STATUS, citem['status']),
-                 (PH_EVENT_DATE, int(time.mktime(event_date.timetuple()) * time_factor)),
-                 (PH_EVENT_MESSAGE, str(citem['message']))]
+        tuple_list_all = []
+        tuple_list = [(PH_ENVIRONMENT, self.__log_environment), (PH_BUSINESS_AREA, self.__log_business_area),
+                      (PH_PARSER_ID, self.__parser_id), (PH_PARSER_REGEX, citem['regex']),
+                      (PH_SOURCEFILE, self.__log_file_path), (PH_SOURCE_LINE_NUM, str(citem['number'])),
+                      (PH_CONFIGFILE, CONFIG_FILE), (PH_EVENT_STATUS, citem['status']),
+                      (PH_DATE_NOW, int(time.mktime(date_now.timetuple()) * time_factor)),
+                      (PH_EVENT_DATE, int(time.mktime(event_date.timetuple()) * time_factor)),
+                      (PH_EVENT_MESSAGE, str(citem['message']))]
         # environment details
         for k, v in self.env_tuples.list:
-            tlist.append((k, v))
+            tuple_list.append((k, v))
         # out keys %k..%
         for i, o in enumerate(citem['out'], start=1):
-            tlist.append(('%k' + str(i) + '%', o))
-            # tlist.append(('%k' + str(i) + '.lower%', str(o).lower()))
+            tuple_list.append(('%k' + str(i) + '%', o))
+            # tuple_list.append(('%k' + str(i) + '.lower%', str(o).lower()))
         # regex groups %g..%
         if citem['text']:
             m = re.search(citem['regex'], citem['text'])
             for i, r in enumerate(m.groups(), start=1):
                 if i > 0:
-                    tlist.append(('%g' + str(i) + '%', r))
+                    tuple_list.append(('%g' + str(i) + '%', r))
         else:
             for i in range(1, 10):
-                tlist.append(('%g' + str(i) + '%', 'None'))
+                tuple_list.append(('%g' + str(i) + '%', 'None'))
 
-        for k, v in tlist:
-            tlist_all.append((k, v))  # original tuple
+        for k, v in tuple_list:
+            tuple_list_all.append((k, v))  # original tuple
             # lower and upper case tuples
             if isinstance(v, str):
-                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.lower' + VAR_DELIMITER, v.lower()))
-                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.upper' + VAR_DELIMITER, v.upper()))
-            else:
-                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.lower' + VAR_DELIMITER, v))  # unchanged
-                tlist_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.upper' + VAR_DELIMITER, v))  # unchanged
+                tuple_list_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.lower' + VAR_DELIMITER, v.lower()))
+                tuple_list_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.upper' + VAR_DELIMITER, v.upper()))
+            else:  # keep it unchanged
+                tuple_list_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.lower' + VAR_DELIMITER, v))
+                tuple_list_all.append((VAR_DELIMITER + k.strip(VAR_DELIMITER) + '.upper' + VAR_DELIMITER, v))
 
-        return tlist_all
-
+        return tuple_list_all
 
     @staticmethod
     def fill_placeholders(obj_dict, tuple_list):
@@ -1084,18 +1029,19 @@ class ClsParser:
         # return the set as a list of tuples
         return list(t_set)
 
-    def curl_token(self):
+    def curl_token(self, con):
         """
         This function gets an authentication token from the ssd,
         after posting username and password.
+        :param con: connection from connections file.
         :return: authentication token
         """
-        protocol = self.http_out_protocol
-        port = self.http_out_port
-        host = self.http_out_hostname
-        path = self.http_out_token_path
-        user = self.http_out_username
-        pw = self.http_out_password
+        protocol = con['protocol']
+        port = con['port']
+        host = con['hostName']
+        path = con['tokenPath']
+        user = con['userName']
+        pw = con['passWord']
 
         content_type = "content-type: application/x-www-form-urlencoded"
         url = protocol + "://" + host + ":" + port + path
@@ -1110,26 +1056,27 @@ class ClsParser:
                 result = result + line
         return result
 
-    def curl_result(self, data):
+    def curl_result(self, data, con):
         """
         This functions posts the data into the target url via curl.
         The data is sent in chunks that are built on the basis of the same customerId.
         Because the target url does contain the customerId in it's path.
         Every single json event is sent separately
         :param data: Data to be sent to the target url.
+        :param con: connection from connections file.
         :return: True id success, False if failed.
         """
         intend = LOG_INTEND * ' '
 
         try:
-            protocol = self.http_out_protocol
-            port = self.http_out_port
-            host = self.http_out_hostname
-            path = self.http_out_event_path
-        except:
+            protocol = con['protocol']
+            port = con['port']
+            host = con['hostName']
+            path = con['eventPath']
+        except AttributeError:
             return None
 
-        json_token = json.loads(self.curl_token())  # contains multiple token parameters
+        json_token = json.loads(self.curl_token(con))  # contains multiple token parameters
         access_token = json_token['access_token']  # extract the access token string exclusively
         authorization = "authorization: Bearer " + access_token
         content_type = "content-type: application/json"
