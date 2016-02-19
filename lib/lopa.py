@@ -229,16 +229,18 @@ class ClsParser:
         try:
             self.__parser_mode_keys_text = dict_parser['mode']['keys']['text']
             self.__parser_mode_keys_group = dict_parser['mode']['keys']['group']
+            self.__parser_mode_interval = dict_parser['mode']['interval']
         except KeyError:
             self.__parser_mode_keys_text = []
             self.__parser_mode_keys_group = 0
+            self.__parser_mode_interval = {'hours': 0}
         self.__parser_regex_positive = dict_parser['regex']['positive'] == 'yes'
         self.__parser_regex = dict_parser['regex']['text']
         self.__parser_key_level = dicttools.count_key_level(dict_parser, KEY_KEYS)
         self.__parser_search_col = self.search_list()
         self.__parser_filter_time = dict_parser['selection']['time']['active'] == 'yes'
         self.__parser_filter_status = dict_parser['selection']['status']
-        self.__parser_time_offset = self.get_time_offset()
+        self.__parser_time_offset = self.get_parser_time_offset()
         self.__parser_time_interval = self.get_time_interval()
         self.__parser_const_status_ok = self.__dict_parser['result']['constants']['status']['ok']
         self.__parser_const_status_error = self.__dict_parser['result']['constants']['status']['error']
@@ -405,7 +407,7 @@ class ClsParser:
         except AttributeError:
             return None
 
-    def get_time_offset(self):
+    def get_parser_time_offset(self):
         """
         Get the time offset for line selection.
         If nothing is specified, take a default of -99998 days
@@ -742,6 +744,36 @@ class ClsParser:
                     str_last_item_date = f['date']
                 i += 1
             return True
+        
+        def steps_in_timerange(citm, interval) -> bool:
+            """
+            Check if event steps are in the allowed step interval.
+            The latest step is assumed to be not older than the maximum allowed time between two steps.
+            :param citm: One item of the combi list containing found items each representing
+                         one step of a multi step event.
+            :param interval: Maximum allowed time between two steps.
+            :return: True if latest step is not older then interval
+            """
+            # check if there is an item 'date' in the found item list
+            # if not, return steps_in_order=True
+            if not citm['found'][0]['date']:
+                return True
+
+            # get a found item list sorted by data ascending
+            c_item_found_sorted = sorted(citm['found'], key=itemgetter('date'))
+
+            str_last_item_date = None
+            assert isinstance(c_item_found_sorted, list)
+            for f in c_item_found_sorted:
+                str_last_item_date = f['date']
+
+            # check date against now
+            # if latest item date is not older than the step interval, then return true
+            # dt = datetime.datetime.strptime(str_last_item_date, self.__log_date_format)
+            try:
+                return str_last_item_date + datetime.timedelta(**interval) > datetime.datetime.now()
+            except TypeError:
+                return False
 
         # count steps for every step type of the multi step event (e.g. START, END)
         step_counter = []  # list of event count tuples (event_key, count)
@@ -761,10 +793,20 @@ class ClsParser:
             if steps_in_order(citem, evtlist, rgroup):
                 status = self.__parser_const_status_ok
             else:
-                status = self.__parser_const_status_error
-                error_step_order = ' error: steps not in order!'
+                # at least one step is missing, maybe due to a multi step process still not finished
+                # check if latest step is not older than the allowed process time per step
+                if steps_in_timerange(citem, self.__parser_mode_interval):
+                    status = self.__parser_const_status_ok
+                else:
+                    status = self.__parser_const_status_error
+                    error_step_order = ' error: steps not in order!'
         else:
-            status = self.__parser_const_status_error
+            # at least one step is missing, maybe due to a multi step process still not finished
+            # check if latest step is not older than the allowed process time per step
+            if steps_in_timerange(citem, self.__parser_mode_interval):
+                status = self.__parser_const_status_ok
+            else:
+                status = self.__parser_const_status_error
 
         for k in citem.keys():
             if k == 'found':

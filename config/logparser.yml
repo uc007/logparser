@@ -184,19 +184,29 @@ defaults:
                 - {name: 'file_size', text: 'OUTSIDE THEIR CONFIGURED SIZE', out: 'FILE_SIZE'}
                 - {name: 'file_missing', text: 'COULD NOT BE FOUND', out: 'FILE_MISSING'}
                 - {name: 'file_number', text: 'FILE COUNT', out: 'FILE_NUMBER'}
-        onbd: &ONB_EVENTS_D  # double onboarding events with START and END
+        onbsmd: &ONB_EVENTS_SM_D  # double onboarding events HPSM with START and END
             keys:
                 - {name: 'onb_autoload', text: 'ONB;AUTOLOAD', out: 'ONB_AUTOLOAD'}
                 - {name: 'ldss_load', text: 'LDSS;LOAD', out: 'LDSS_LOAD'}
                 - {name: 'ldss_validation', text: 'LDSS;VALIDATION', out: 'LDSS_VALIDATION'}
                 - {name: 'onb_transformation', text: 'ONB;TRANSFORMATION', out: 'ONB_TRANSFORMATION'}
                 - {name: 'ovsc_transformation', text: 'OVSC;TRANSFORMATION', out: 'OVSC_TRANSFORMATION'}
-                - {name: 'dss_wrapperscript', text: 'LDSS;WRAPPERSCRIPT', out: 'LDSS_WRAPPERSCRIPT'}
-        onbs: &ONB_EVENTS_S  # single onboarding events
+                - {name: 'ldss_wrapperscript', text: 'LDSS;WRAPPERSCRIPT', out: 'LDSS_WRAPPERSCRIPT'}
+        onbsms: &ONB_EVENTS_SM_S  # single onboarding HPSM events
             keys:
                 - {name: 'ovsc_hpp_script', text: 'OVSC;HPP SCRIPT', out: 'OVSC_HPP_SCRIPT'}
                 - {name: 'onb_release', text: 'ONB;RELEASE', out: 'ONB_RELEASE'}
                 - {name: 'ovsc_release', text: 'OVSC;RELEASE', out: 'OVSC_RELEASE'}
+        onbamd: &ONB_EVENTS_AM_D  # double onboarding events HPAM with START and END
+            keys:
+                - {name: 'onb_autoload', text: 'ONB;AUTOLOAD', out: 'ONB_AUTOLOAD'}
+                - {name: 'ldss_load', text: 'LDSS;LOAD', out: 'LDSS_LOAD'}
+                - {name: 'ldss_validation', text: 'LDSS;VALIDATION', out: 'LDSS_VALIDATION'}
+                - {name: 'hpam_transformation', text: 'HPAM;TRANSFORMATION', out: 'HPAM_TRANSFORMATION'}
+                - {name: 'ldss_wrapperscript', text: 'LDSS;WRAPPERSCRIPT', out: 'LDSS_WRAPPERSCRIPT'}
+        onbams: &ONB_EVENTS_AM_S  # single onboarding HPAM events
+            keys:
+                - {name: 'hpam_release', text: 'HPAM;RELEASE', out: 'HPAM_RELEASE'}
     solutions:
         file:
             aca:  &FILE_AI_CU_AS
@@ -211,14 +221,14 @@ defaults:
                 name: 'ovac_hpsm_device'
                 text: 'OVAC_HPSM_DEVICE'
                 out: 'OVAC_HPSM_DEVICE'
+            caa:  &FILE_CU_AM_AS
+                name: 'cust_hpam_asset'
+                text: 'CUST_HPAM_ASSET'
+                out: 'CUST_HPAM_ASSET'
             cac:  &FILE_CU_AM_CO
                 name: 'cust_hpam_contact'
                 text: 'CUST_HPAM_CONTACT'
                 out: 'CUST_HPAM_CONTACT'
-            cad:  &FILE_CU_AM_DV
-                name: 'cust_hpam_device'
-                text: 'CUST_HPAM_DEVICE'
-                out: 'CUST_HPAM_DEVICE'
             csc:  &FILE_CU_SM_CO
                 name: 'cust_hpsm_contact'
                 text: 'CUST_HPSM_CONTACT'
@@ -227,7 +237,6 @@ defaults:
                 name: 'cust_hpsm_device'
                 text: 'CUST_HPSM_DEVICE'
                 out: 'CUST_HPSM_DEVICE'
-
         onb:
             asd:  &ONB_AI_SM_DV
                 name: 'ami_hpsm_device'
@@ -237,14 +246,14 @@ defaults:
                 name: 'ovac_hpsm_device'
                 text: 'OVSC_DEVICE'
                 out: 'OVAC_HPSM_DEVICE'
+            caa:  &ONB_CU_AM_AS
+                name: 'cust_asset_asset'
+                text: 'ASSET_ASSET'
+                out: 'CUST_HPAM_ASSET'
             cac:  &ONB_CU_AM_CO
                 name: 'cust_asset_contact'
                 text: 'ASSET_CONTACT'
                 out: 'CUST_HPAM_CONTACT'
-            cad:  &ONB_CU_AM_AS
-                name: 'cust_asset_asset'
-                text: 'ASSET_ASSET'
-                out: 'CUST_HPAM_ASSET'
             csc:  &ONB_CU_SM_CO
                 name: 'cust_ovsc_contact'
                 text: 'OVSC_CONTACT'
@@ -261,14 +270,14 @@ defaults:
     selection:
         onb: &ONB_CHUNK
             chunk:
-                size: 1000 # chunk size in lines
-                offset: -6 # negative offset gets chunks from the end of file
-                number: 6 # number of chunks to process
+                size: 10000 # chunk size in lines
+                offset: -1 # negative offset gets chunks from the end of file
+                number: 1 # number of chunks to process
         onb: &ONB_TIME
             time:
                 active: 'yes' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
-                offset: {'days': -7} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
-                interval: {'days': 7} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                offset: {'days': -300} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 300} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
         onb: &ONB_SELECTION
             selection:
                 <<: *ONB_CHUNK
@@ -349,7 +358,7 @@ logs:
 parser:
     -   id: 'PRS0001'
         text: 'Looks for file events like FILE_SIZE, FILE_AGE etc.'
-        active: 'yes'
+        active: 'no'
         logId: ['LOG0001']
         mode:
             id: 1   # 1-single, 2-pair (start, end)
@@ -414,10 +423,11 @@ parser:
 
     -   id: 'PRS0002'
         text: 'Looks for start-end database events like ONB_LOAD, ONB_VALIDATION etc.'
-        active: 'no'
+        active: 'yes'
         logId: ['LOG0002']
         mode:
             id: 2   # 1-single, 2-multi (start, .., end)
+            interval: {'hours': 6} # maximum allowed time between two steps
             keys:
                 text: ['START', 'END']
                 group: 8 # in which regex group are the keys
@@ -428,14 +438,14 @@ parser:
                 keys:
                     -   <<: *ONB_CU_SM_CO
                         keys:
-                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_D}
+                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_SM_D}
             -   name: 'azse'
                 text: 'AZSE'
                 out: 'AZSE'
                 keys:
                     -   <<: *ONB_CU_SM_CO
                         keys:
-                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_D}
+                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_SM_D}
         <<: *ONB_REGEX
         selection:
             <<: *ONB_CHUNK
@@ -461,14 +471,14 @@ parser:
                 keys:
                     -   <<: *ONB_CU_SM_CO
                         keys:
-                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_S}
+                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_SM_S}
             -   name: 'azse'
                 text: 'AZSE'
                 out: 'AZSE'
                 keys:
                     -   <<: *ONB_CU_SM_CO
                         keys:
-                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_S}
+                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_SM_S}
         <<: *ONB_REGEX
         <<: *ONB_SELECTION
         <<: *ONB_RESULT
@@ -495,12 +505,12 @@ parser:
         selection:
             chunk:
                 size: 300 # chunk size in lines
-                offset: -1 # negative offset gets chunks from the end of file
+                offset: -2 # negative offset gets chunks from the end of file
                 number: 1 # number of chunks to process
             time:
                 active: 'yes' # 'yes' - filtering the file for records within a certain time period, 'no' - no time filter
-                offset: {'days': -3} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
-                interval: {'days': 2} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                offset: {'days': -200} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
+                interval: {'days': 200} # time delta in days, seconds, microseconds, milliseconds, minutes, hours, weeks
             group:
                 slice: '-1::' # slice notation - ':1:' first item, '-1::' last item, '::' all items
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
