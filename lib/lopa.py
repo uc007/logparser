@@ -9,7 +9,9 @@ import copy
 import sys
 import pprint
 from operator import itemgetter
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE  # for cURL data sending
+import smtplib  # for the actual sending function
+from email.mime.text import MIMEText  # email module
 
 __author__ = 'Ralf'
 
@@ -26,6 +28,7 @@ VAR_DELIMITER = '%'
 PH_DATE = '%dt%'
 PH_DATE_NOW = '%dtNow%'
 PH_BUSINESS_AREA = '%businessArea%'
+PH_CHUNK_KEY = '%chunkKey%'
 PH_CONFIGFILE = '%configFile%'
 PH_CUSTOMER_ID = '%customerId%'
 PH_EVENT_STATUS = '%eventStatus%'
@@ -253,11 +256,16 @@ class ClsParser:
             self.__parser_group_slice = '-1::'  # default - last element
         self.__parser_result_fields = dict_parser['result']['fields']
         self.env_tuples = ClsEnvTuples()
-        self.__parser_result_file_path = dict_parser['out']['file']['pathName'] + '/' + \
-            dict_parser['out']['file']['fileName']
-        self.__parser_result_file_path = self.__parser_result_file_path.replace(PH_PARSER_ID, self.__parser_id)
-        self.__parser_http_out_chunk_key = dict_parser['out']['http']['chunkKey']
-        self.__parser_http_out_time_factor = dict_parser['out']['http']['timeFactor']
+        if 'file' in dict_parser['out']:
+            self.__parser_result_file_path = dict_parser['out']['file']['pathName'] + '/' + \
+                                             dict_parser['out']['file']['fileName']
+            self.__parser_result_file_path = self.__parser_result_file_path.replace(PH_PARSER_ID, self.__parser_id)
+        if 'http' in dict_parser['out']:
+            self.__parser_http_out_chunk_key = dict_parser['out']['http']['chunkKey']
+            self.__parser_http_out_time_factor = dict_parser['out']['http']['timeFactor']
+        if 'mail' in dict_parser['out']:
+            self.__parser_mail_out_chunk_key = dict_parser['out']['mail']['chunkKey']
+            self.__parser_mail_out_time_factor = dict_parser['out']['mail']['timeFactor']
 
         # logger
         self.__logger = logger
@@ -624,10 +632,13 @@ class ClsParser:
                             combi_list_normalized.append(cin)
                     else:
                         if self.__parser_mode_id == 2:
-                            # multi mode - all found items shall result in in one item
+                            # multi mode - all found items (steps) shall result in in one item (event)
                             cin = self.multi_item_normalized(citem, self.__parser_mode_keys_text,
                                                              self.__parser_mode_keys_group)
-                            combi_list_normalized.append(cin)
+                            # Check if a valid event has been returned.
+                            # None means, the multi step event has not been finished yet, hence no adding to the list.
+                            if not (cin is None):
+                                combi_list_normalized.append(cin)
                 else:
                     # positive events not found
                     cin = {}  # combi item normalized
@@ -689,7 +700,8 @@ class ClsParser:
         :param evtlist: List of multiple keywords each representing one step of a
                         multiple step event.
         :param rgroup: The regex group where the key of the evtlist is contained.
-        :return: One normalized combi list item
+        :return: One normalized combi list item or None, if the multiple step event is incomplete
+                 and lies within the allowed maximum time interval
         """
 
         def step_counts_equal(scounter) -> bool:
@@ -796,7 +808,8 @@ class ClsParser:
                 # at least one step is missing, maybe due to a multi step process still not finished
                 # check if latest step is not older than the allowed process time per step
                 if steps_in_timerange(citem, self.__parser_mode_interval):
-                    status = self.__parser_const_status_ok
+                    # multi step event is incomplete but within max allowed time interval
+                    return None
                 else:
                     status = self.__parser_const_status_error
                     error_step_order = ' error: steps not in order!'
@@ -804,7 +817,8 @@ class ClsParser:
             # at least one step is missing, maybe due to a multi step process still not finished
             # check if latest step is not older than the allowed process time per step
             if steps_in_timerange(citem, self.__parser_mode_interval):
-                status = self.__parser_const_status_ok
+                # multi step event is incomplete but within max allowed time interval
+                return None
             else:
                 status = self.__parser_const_status_error
 
@@ -1052,7 +1066,7 @@ class ClsParser:
 
         return result_list
 
-    def http_key_tuples(self, data):
+    def out_key_tuples(self, data, chunk_key):
         """
         This function provides a list of unique tuples for the http chunk sending.
         Each tuple represents a key for collecting events to be sent in one chunk.
@@ -1064,7 +1078,7 @@ class ClsParser:
         t_list = []
         for d in data:
             for (k, v) in d.items():
-                if k == self.http_out_chunk_key:
+                if k == chunk_key:
                     t_list.append((k, v))
         # create a set of tuples in order to obtain unique items
         t_set = set(t_list)
@@ -1106,7 +1120,7 @@ class ClsParser:
         Every single json event is sent separately
         :param data: Data to be sent to the target url.
         :param con: connection from connections file.
-        :return: True id success, False if failed.
+        :return: True - success, False - failed.
         """
         intend = LOG_INTEND * ' '
 
@@ -1116,7 +1130,7 @@ class ClsParser:
             host = con['hostName']
             path = con['eventPath']
         except AttributeError:
-            return None
+            return False
 
         json_token = json.loads(self.curl_token(con))  # contains multiple token parameters
         access_token = json_token['access_token']  # extract the access token string exclusively
@@ -1124,9 +1138,9 @@ class ClsParser:
         content_type = "content-type: application/json"
 
         self.__logger.info(LOG_MAX_TEXT_LEN * '-')
-        self.__logger.info('Send ' + str(len(data)) + ' events to SSD.')
+        self.__logger.info('Send ' + str(len(data)) + ' events via cURL to SSD.')
         result = ''
-        for (k, v) in self.http_key_tuples(data):
+        for (k, v) in self.out_key_tuples(data, self.__parser_http_out_chunk_key):
             # calculate chunk of result list due to chunkKey
             c_list = [d for d in data if d[k] == v]
             url = protocol + "://" + host + ":" + port + path.replace(PH_CUSTOMER_ID, v)
@@ -1140,7 +1154,59 @@ class ClsParser:
                     for line in p.stdout:
                         result += line
             result += '\n'
-        return result
+        return True
+
+    def mail_result(self, data, con):
+        """
+        This functions sends the data to a mailbox.
+        The data is sent in chunks that are built on the basis of the same chunkKey (here customerId).
+        Because the target mailbox expects the chunkKey enclosed in square brackets in the mail subject.
+        All json events of one chunkKey are sent in one e-mail.
+        :param data: Data to be sent to the target url.
+        :param con: connection from connections file.
+        :return: True - success, False - failed.
+        """
+        intend = LOG_INTEND * ' '
+
+        try:
+            protocol = con['protocol']
+            host = con['hostName']
+            addr_to = con['to']
+            addr_from = con['from']
+            subject_ph = con['subject'] # get subject with placeholder
+            body_delim = con['bodyDelimiter']
+        except AttributeError:
+            return False
+
+        self.__logger.info(LOG_MAX_TEXT_LEN * '-')
+        self.__logger.info('Send ' + str(len(data)) + ' events via ' + protocol + ' e-mail to SSD.')
+        body = ''
+        for (k, v) in self.out_key_tuples(data, self.__parser_mail_out_chunk_key):
+            # calculate chunk of result list due to chunkKey
+            c_list = [d for d in data if d[k] == v]
+            self.__logger.debug(LOG_MAX_TEXT_LEN * '-')
+            self.__logger.debug(intend + 'Send ' + str(len(c_list)) + ' events for ' + v + '.')
+            self.__logger.debug(intend + 'From: ' + addr_from)
+            self.__logger.debug(intend + 'To: ' + addr_to)
+            # calculate mail subject and body
+            subject = subject_ph.replace(PH_CHUNK_KEY, v)
+            body = body_delim + '\n' + json.dumps(c_list) + '\n' + body_delim
+
+            # compose mail
+            msg = MIMEText(body)
+            msg['Subject'] = subject
+            msg['From'] = addr_from
+            msg['To'] = addr_to
+            
+            try:
+                # Send the message via SMTP server.
+                s = smtplib.SMTP(host)
+                s.send_message(msg)
+                s.quit()
+            except Exception as e:
+                self.__logger.error('Failed sending events for '  + v + 'via e-mail to SSD, message: ' + e)                
+
+        return True
 
     def log_info(self):
         """

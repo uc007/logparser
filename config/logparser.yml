@@ -93,6 +93,7 @@
 # - regex: Defines regex for multiple usage.
 # - selection: Defines which data is searched for event.
 # - results: Defines how the result json record is composed.
+# - out: Defines whre the result json records are sent to.
 #
 #########################################################################################
 
@@ -311,14 +312,20 @@ defaults:
                         <<: *PROP_SOURCE
                         <<: *PROP_PYTHON
     out:
-        onb: &ONB_OUT
+        onb: &OUT_FILE
             file:
                 pathName: './out'
                 fileName: 'events_%parserId%.json'
+        onb: &OUT_HTTP
             http:
-                connections: ['CON_SSD_PRE-PROD']
+                connections: ['CON_HTTP_SSD_PRE-PROD'] # refers to a separate connections file
                 chunkKey: 'customerId' # key for collecting events, that are sent in one chunk
                 timeFactor: 1000 # with http send to ssd the UNIX time is expected im ms instead of s
+        onb: &OUT_MAIL
+            mail:
+                connections: ['CON_MAIL_SSD_PRE-PROD'] # refers to a separate connections file
+                chunkKey: 'customerId' # key for collecting events, that are sent in one e-mail
+                timeFactor: 1 # with mail send to ssd the UNIX time is as usual in seconds (s)
 
 logs:
     -   id: 'LOG0001'
@@ -419,7 +426,8 @@ parser:
                     <<: *PROP_SOURCE
                     <<: *PROP_PYTHON
         out:
-            <<: *ONB_OUT
+            <<: *OUT_FILE
+            <<: *OUT_HTTP
 
     -   id: 'PRS0002'
         text: 'Looks for start-end database events like ONB_LOAD, ONB_VALIDATION etc.'
@@ -427,25 +435,18 @@ parser:
         logId: ['LOG0002']
         mode:
             id: 2   # 1-single, 2-multi (start, .., end)
-            interval: {'hours': 6} # maximum allowed time between two steps
+            interval: {'hours': 72} # maximum allowed time of one multi event
             keys:
                 text: ['START', 'END']
                 group: 8 # in which regex group are the keys
         keys:
-            -   name: 'alu'
-                text: 'ALU'
-                out: 'ALU'
+            -   name: 'shlr'
+                text: 'SHLR'
+                out: 'SHLR'
                 keys:
                     -   <<: *ONB_CU_SM_CO
                         keys:
-                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_SM_D}
-            -   name: 'azse'
-                text: 'AZSE'
-                out: 'AZSE'
-                keys:
-                    -   <<: *ONB_CU_SM_CO
-                        keys:
-                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_SM_D}
+                            - {name: '1350747', text: '1350747', out: '1350747', <<: *ONB_EVENTS_SM_D}  # Full load
         <<: *ONB_REGEX
         selection:
             <<: *ONB_CHUNK
@@ -456,7 +457,8 @@ parser:
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
         <<: *ONB_RESULT
         out:
-            <<: *ONB_OUT
+            <<: *OUT_FILE
+            <<: *OUT_HTTP
 
     -   id: 'PRS0003'
         text: 'Looks for single database events like ONB_RELEASE, OVSC_HPP_SCRIPT etc.'
@@ -465,25 +467,19 @@ parser:
         mode:
             id: 1   # 1-single, 2-multi (start, .., end)
         keys:
-            -   name: 'alu'
-                text: 'ALU'
-                out: 'ALU'
+            -   name: 'shlr'
+                text: 'SHLR'
+                out: 'SHLR'
                 keys:
                     -   <<: *ONB_CU_SM_CO
                         keys:
-                            - {name: '1000242', text: '1000242', out: '1000242', <<: *ONB_EVENTS_SM_S}
-            -   name: 'azse'
-                text: 'AZSE'
-                out: 'AZSE'
-                keys:
-                    -   <<: *ONB_CU_SM_CO
-                        keys:
-                            - {name: '1195605', text: '1195605', out: '1195605', <<: *ONB_EVENTS_SM_S}
+                            - {name: '1350747', text: '1350747', out: '1350747', <<: *ONB_EVENTS_SM_S}  # Full load
         <<: *ONB_REGEX
         <<: *ONB_SELECTION
         <<: *ONB_RESULT
         out:
-            <<: *ONB_OUT
+            <<: *OUT_FILE
+            <<: *OUT_HTTP
             
     -   id: 'PRS0004'
         text: 'Looks for file events like FILE_SIZE, FILE_AGE etc.'
@@ -516,7 +512,8 @@ parser:
             status: [] # filter result for defined status, e.g. ['error', 'warning'], empty list for no filtering
         <<: *ONB_RESULT
         out:
-            <<: *ONB_OUT
+            <<: *OUT_FILE
+            <<: *OUT_HTTP
 
 logging:
     version: 1
